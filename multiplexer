@@ -1,0 +1,16 @@
+module mux4to1(
+
+input [3:0] i,
+input [1:0] s,
+output ow);
+reg ow;
+
+always @ (s or i)
+begin 
+case (s) 
+2'b00 : ow = i[0];
+2'b01 : ow = i[1];
+2'b10 : ow = i[2];
+2'b11 : ow = i[3];
+endcase;
+end
