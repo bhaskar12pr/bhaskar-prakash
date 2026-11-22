@@ -28,10 +28,13 @@ TEMPLATES = HERE / "templates"
 
 # Input files a project folder holds. config.json may rename any of them under "files".
 DEFAULT_FILES = {"regression": "regression_runs.csv", "coverage": "coverage.csv",
-                 "bugs": "bugs.csv", "testplan": "testplan.csv"}
+                 "bugs": "bugs.csv", "testplan": "testplan.csv", "owners": "owners.csv"}
+OPTIONAL_FILES = {"owners"}  # a project without this file simply has no owner view
+OWNER_COLS = ("owner", "scope")
+UNASSIGNED = "(unassigned)"
 # Tunable settings a project may override under "settings" in config.json.
 DEFAULT_SETTINGS = {"intermittent_window": 7, "bug_trend_weeks": 10, "stale_after_days": 3,
-                    "test_history_runs": 10}
+                    "test_history_runs": 10, "owner_weeks": 6}
 UNGROUPED = "(no subsystem)"
 
 STATUSES = ("PASS", "FAIL", "TIMEOUT", "ERROR")
@@ -142,6 +145,7 @@ def load(data_dir: Path) -> dict:
             "status": status,
             "opened": _date(r["opened"], r["_where"]),
             "closed": closed,
+            "owner": r.get("owner", ""),  # optional; otherwise the block's owner from owners.csv
         })
 
     milestones = [m["name"] for m in config.get("milestones", [])]
@@ -155,8 +159,47 @@ def load(data_dir: Path) -> dict:
             "test": r["test"],
         })
 
+    owners = []
+    if files["owners"].exists() or "owners" in config.get("_explicit_files", ()):
+        seen = {}
+        for r in read_csv(files["owners"], OWNER_COLS):
+            scope = r["scope"].strip("/")
+            if not r["owner"] or not scope:
+                raise InputError(f"{r['_where']}: owner and scope are both required")
+            if scope in seen and seen[scope][0] != r["owner"]:
+                raise InputError(f"{r['_where']}: scope '{scope}' is already owned by {seen[scope][0]} "
+                                 f"({seen[scope][1]})")
+            seen[scope] = (r["owner"], r["_where"])
+            owners.append({"owner": r["owner"], "scope": scope, "_where": r["_where"]})
+        check_owner_scopes(owners, runs, config)
+
     return {"config": config, "dir": data_dir, "runs": runs, "coverage": coverage, "bugs": bugs,
-            "testplan": testplan}
+            "testplan": testplan, "owners": owners}
+
+
+def check_owner_scopes(owners, runs, config):
+    """Every owners.csv scope must name something in the regression results."""
+    known = set()
+    for r in runs:
+        ss, mod, inst = hierarchy_path(r, config["block_subsystem"])
+        known.update((ss, mod, f"{mod}/{inst}", f"{mod}/{inst}/{r['test']}"))
+    for o in owners:
+        if o["scope"] not in known:
+            raise InputError(f"{o['_where']}: scope '{o['scope']}' matches no subsystem, module, "
+                             f"module/instance or module/instance/test in the regression results")
+
+
+def owner_lookup(owners):
+    """Return owner(ss, module, instance, test): the most specific matching scope wins."""
+    rules = {o["scope"]: o["owner"] for o in owners}
+
+    def owner(ss, mod, inst=None, test=None):
+        for scope in (f"{mod}/{inst}/{test}" if inst and test else None,
+                      f"{mod}/{inst}" if inst else None, mod, ss):
+            if scope and scope in rules:
+                return rules[scope]
+        return UNASSIGNED
+    return owner
 
 
 def load_config(path: Path) -> dict:
@@ -167,6 +210,7 @@ def load_config(path: Path) -> dict:
         raise InputError(f"{path}: invalid JSON at line {e.lineno}: {e.msg}") from None
     if not isinstance(config, dict):
         raise InputError(f"{path}: must be a JSON object")
+    config["_explicit_files"] = sorted(config.get("files", {}))
     unknown_files = set(config.get("files", {})) - set(DEFAULT_FILES)
     if unknown_files:
         raise InputError(f"{path}: unknown key(s) in \"files\": {', '.join(sorted(unknown_files))}; "
@@ -483,6 +527,8 @@ def regression_tree(data: dict) -> dict:
 
     nodes = {(): new_node(())}
     test_rows = []
+    has_owners = bool(data.get("owners"))
+    owner_of = owner_lookup(data.get("owners", []))
     for key in sorted(tests):
         ss, mod, inst, name = key
         t = tests[key]
@@ -527,6 +573,7 @@ def regression_tree(data: dict) -> dict:
             "fixed": cur == "PASS" and before is not None and before != "PASS",
             "flips": flips,
             "sig": t["sig"].get(latest, ""),
+            "o": owner_of(ss, mod, inst, name) if has_owners else "",
         })
 
     for r in data["runs"]:
@@ -543,10 +590,96 @@ def regression_tree(data: dict) -> dict:
         last = sims[latest]
         node["latest"] = {"fail": last["FAIL"], "timeout": last["TIMEOUT"], "error": last["ERROR"]}
         node["children"] = [node_slug(c) for c in sorted(node["children"])]
+        node["owners"] = sorted({t["o"] for t in test_rows if t["o"] and
+                                 [t["ss"], t["mod"], t["inst"]][:len(path)] == list(path)})
         out.append(node)
     out.sort(key=lambda nd: nd["path"])
     return {"runs": [{"run": r, "date": d.isoformat()} for r, d in order],
-            "nodes": out, "tests": test_rows, "history": min(history, n)}
+            "nodes": out, "tests": test_rows, "history": min(history, n),
+            "owners": owner_weeks(data, tests, order, owner_of) if has_owners else None}
+
+
+def owner_weeks(data, tests, order, owner_of):
+    """Week-by-week progress for every owner.
+
+    A week runs from the day after its start to its end date inclusive, ending on the
+    project's as-of date and stepping back 7 days at a time. "Start" is the last run
+    before the week began (or the week's first run if there was none); "end" is the
+    week's last run. Weeks with no runs are left out.
+    """
+    cfg = data["config"]
+    dates = [d for _, d in order]
+    run_ids = [r for r, _ in order]
+    as_of = dt.date.fromisoformat(cfg["as_of"]) if cfg.get("as_of") else dates[-1]
+    weeks = []
+    for w in range(cfg["settings"]["owner_weeks"] - 1, -1, -1):
+        end = as_of - dt.timedelta(days=7 * w)
+        start = end - dt.timedelta(days=7)
+        in_week = [i for i, d in enumerate(dates) if start < d <= end]
+        if not in_week:
+            continue
+        before = [i for i, d in enumerate(dates) if d <= start]
+        weeks.append({"start": start.isoformat(), "end": end.isoformat(), "runs": len(in_week),
+                      "start_run": run_ids[before[-1]] if before else None,
+                      "end_run": run_ids[in_week[-1]],
+                      "_in": set(in_week), "_s": before[-1] if before else None, "_e": in_week[-1]})
+
+    def blank():
+        return {k: 0 for k in ("tp_s", "tp_e", "ran_s", "ran_e", "fail_e", "added", "new_fail", "fixed",
+                               "sims", "sims_pass", "bug_opened", "bug_closed", "bug_unresolved")}
+    stats = defaultdict(lambda: [blank() for _ in weeks])
+    scopes = defaultdict(list)
+    for o in data["owners"]:
+        scopes[o["owner"]].append(o["scope"])
+    current_tests = Counter()
+
+    for (ss, mod, inst, name), t in tests.items():
+        o = owner_of(ss, mod, inst, name)
+        st = t["status"]
+        current_tests[o] += 1
+        first = min(st)
+        for wi, wk in enumerate(weeks):
+            s = st.get(wk["_s"]) if wk["_s"] is not None else None
+            e = st.get(wk["_e"])
+            x = stats[o][wi]
+            x["tp_s"] += s == "PASS"
+            x["tp_e"] += e == "PASS"
+            x["ran_s"] += s is not None
+            x["ran_e"] += e is not None
+            x["fail_e"] += e is not None and e != "PASS"
+            x["added"] += first in wk["_in"]
+            x["new_fail"] += s == "PASS" and e is not None and e != "PASS"
+            x["fixed"] += s is not None and s != "PASS" and e == "PASS"
+
+    idx = {r: i for i, r in enumerate(run_ids)}
+    for r in data["runs"]:
+        ss, mod, inst = hierarchy_path(r, cfg["block_subsystem"])
+        o = owner_of(ss, mod, inst, r["test"])
+        i = idx[r["run_id"]]
+        for wi, wk in enumerate(weeks):
+            if i in wk["_in"]:
+                stats[o][wi]["sims"] += 1
+                stats[o][wi]["sims_pass"] += r["status"] == "PASS"
+
+    block_ss = {}
+    for r in data["runs"]:
+        block_ss.setdefault(r["block"], hierarchy_path(r, cfg["block_subsystem"])[0])
+    for b in data["bugs"]:
+        o = b.get("owner") or owner_of(block_ss.get(b["block"], cfg["block_subsystem"].get(b["block"], UNGROUPED)),
+                                         b["block"])
+        for wi, wk in enumerate(weeks):
+            start, end = dt.date.fromisoformat(wk["start"]), dt.date.fromisoformat(wk["end"])
+            x = stats[o][wi]
+            x["bug_opened"] += start < b["opened"] <= end
+            x["bug_closed"] += b["closed"] is not None and start < b["closed"] <= end
+            x["bug_unresolved"] += b["opened"] <= end and (b["closed"] is None or b["closed"] > end)
+
+    names = sorted(stats, key=lambda o: (o == UNASSIGNED, o.lower()))
+    return {
+        "weeks": [{k: v for k, v in wk.items() if not k.startswith("_")} for wk in weeks],
+        "list": [{"owner": o, "scopes": sorted(scopes.get(o, [])), "tests": current_tests[o],
+                  "weeks": stats[o]} for o in names],
+    }
 
 
 def build_regression_payload(data: dict, links: dict) -> dict:

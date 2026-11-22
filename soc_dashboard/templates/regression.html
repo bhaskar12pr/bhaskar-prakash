@@ -39,6 +39,22 @@
 .tag-new { font: 600 .66rem var(--font-body); text-transform: uppercase; letter-spacing: .06em; color: var(--fail); margin-left: 6px; }
 .tag-fixed { font: 600 .66rem var(--font-body); text-transform: uppercase; letter-spacing: .06em; color: var(--pass); margin-left: 6px; }
 .chip[aria-pressed="true"] .muted { color: inherit; opacity: .8; }
+.owners { min-width: 940px; }
+.owners th { white-space: normal; }
+.owners td { vertical-align: middle; padding-block: 10px; }
+.owners .who { font: 600 1rem var(--font-display); }
+.owners .scopes { font: .74rem var(--font-mono); color: var(--muted); max-width: 200px; white-space: normal; overflow-wrap: anywhere; }
+.owners .moved { display: flex; align-items: baseline; gap: 6px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.owners .moved b { font: 600 1.1rem var(--font-display); }
+.owners .stack { height: 8px; margin-top: 5px; }
+.owners tr.on td { background: var(--accent-soft); }
+.weekbars { display: flex; align-items: flex-end; gap: 3px; height: 30px; }
+.weekbars span { width: 10px; background: var(--planned); border-radius: 1px; position: relative; }
+.weekbars span.cur { background: var(--accent); }
+.wk-btn { font: 500 .82rem var(--font-body); }
+.who-btn { font: 500 .8rem var(--font-body); color: var(--accent); background: none; border: 1px solid var(--line); border-radius: 4px; padding: 4px 9px; cursor: pointer; white-space: nowrap; }
+.who-btn:hover { border-color: var(--accent); }
+.tree .own { font-size: .78rem; color: var(--muted); white-space: nowrap; }
 .more { font: 500 .84rem var(--font-body); color: var(--accent); background: none; border: 1px solid var(--line); border-radius: 4px; padding: 6px 12px; cursor: pointer; justify-self: start; }
 .kpi .bar { display: flex; height: 8px; border-radius: 2px; overflow: hidden; background: var(--sunken); margin-top: 4px; }
 .kpi .bar span { display: block; height: 100%; }
@@ -71,6 +87,17 @@
     </div>
   </section>
 
+  <section class="band" id="owners-band" hidden>
+    <div class="band-head"><h2>Owners</h2><p id="own-note"></p></div>
+    <div class="panel">
+      <div class="panel-head">
+        <div class="filters" id="weeks" role="group" aria-label="Week"></div>
+        <span class="muted" style="font-size:.78rem">Start is the last run before the week; end is the week's last run.</span>
+      </div>
+      <div class="scroll"><table class="owners" id="owners"></table></div>
+    </div>
+  </section>
+
   <section class="band">
     <div class="band-head"><h2>Subsystems, modules and instances</h2><p>Select a name to focus every panel on it. Progress counts tests in the latest run.</p></div>
     <div class="panel">
@@ -82,7 +109,7 @@
     </div>
   </section>
 
-  <section class="band">
+  <section class="band" id="tests-band">
     <div class="band-head"><h2>Tests</h2><p id="tests-note"></p></div>
     <div class="panel">
       <div class="panel-head">
@@ -107,6 +134,7 @@
   var root = byId.all;
   var N = D.runs.length, L = N - 1;
   var sel = "all", filter = "all", query = "", limit = 150;
+  var O = D.owners, week = O ? O.weeks.length - 1 : 0, ownerFilter = null;
   var expanded = {}; root.children.forEach(function (c) { expanded[c] = true; }); expanded.all = true;
 
   function $(id) { return document.getElementById(id); }
@@ -244,9 +272,46 @@
     $("sigs").innerHTML = h + "</tbody></table>";
   }
 
+  /* ---------- owners ---------- */
+  function weekLabel(w) { var s = new Date(w.start + "T00:00:00Z"); s.setUTCDate(s.getUTCDate() + 1); return shortDate(s.toISOString().slice(0, 10)) + " – " + shortDate(w.end); }
+  function renderOwners() {
+    if (!O || !O.weeks.length) { $("owners-band").hidden = true; return; }
+    $("owners-band").hidden = false;
+    $("weeks").innerHTML = "<span class=\"label\">Week</span>" + O.weeks.map(function (w, i) {
+      return "<button type=\"button\" class=\"chip wk-btn\" data-week=\"" + i + "\" aria-pressed=\"" + (i === week) + "\">" + weekLabel(w) + "</button>";
+    }).join("");
+    var wk = O.weeks[week], first = !wk.start_run;
+    var h = "<thead><tr><th>Owner</th><th>Tests passing, start → end</th><th class=\"r\">New fails</th><th class=\"r\">Fixed</th><th class=\"r\">Added</th><th>Sim pass rate this week</th><th class=\"r\">Bugs opened / closed</th><th class=\"r\">Bugs open at end</th><th>Passing by week</th><th></th></tr></thead><tbody>";
+    O.list.forEach(function (o) {
+      var x = o.weeks[week], px = week > 0 ? o.weeks[week - 1] : null;
+      var d = x.tp_e - x.tp_s, r = x.sims ? x.sims_pass / x.sims : null, pr = px && px.sims ? px.sims_pass / px.sims : null;
+      var dr = r != null && pr != null ? r - pr : null, tot = Math.max(1, x.ran_e);
+      var maxW = Math.max.apply(null, o.weeks.map(function (y) { return y.tp_e; }).concat([1]));
+      h += "<tr" + (ownerFilter === o.owner ? " class=\"on\"" : "") + "><td><div class=\"who\">" + esc(o.owner) + "</div><div class=\"scopes\">" + (o.scopes.length ? o.scopes.map(esc).join(", ") : "not in owners.csv") + "</div></td>" +
+        "<td><div class=\"moved\">" + (first ? "<span class=\"muted\">first week</span>" : "<span class=\"muted\">" + x.tp_s + "</span> →") + " <b>" + x.tp_e + "</b><span class=\"muted\">/ " + x.ran_e + "</span>" +
+        (first ? "" : " <span class=\"" + (d > 0 ? "up" : d < 0 ? "down" : "count0") + "\">" + (d > 0 ? "+" : d < 0 ? "−" : "±") + Math.abs(d) + "</span>") + "</div>" +
+        "<div class=\"stack\" title=\"" + x.tp_e + " passing, " + x.fail_e + " failing at week end\"><span class=\"s-passing\" style=\"width:" + (100 * x.tp_e / tot) + "%\"></span><span class=\"s-failing\" style=\"width:" + (100 * x.fail_e / tot) + "%\"></span></div></td>" +
+        "<td class=\"r" + (x.new_fail ? " down" : " count0") + "\">" + x.new_fail + "</td>" +
+        "<td class=\"r" + (x.fixed ? " up" : " count0") + "\">" + x.fixed + "</td>" +
+        "<td class=\"r" + (x.added ? "" : " count0") + "\">" + x.added + "</td>" +
+        "<td>" + (r == null ? "–" : "<span class=\"pill " + rateClass(r) + "\">" + pct(r) + "</span>" + (dr != null ? " <span class=\"" + (dr >= 0 ? "up" : "down") + "\" style=\"font-size:.8rem\">" + (dr >= 0 ? "+" : "−") + Math.abs(100 * dr).toFixed(1) + "</span>" : "") + "<div class=\"small muted\" style=\"font-size:.74rem\">" + x.sims_pass + " of " + x.sims + " sims</div>") + "</td>" +
+        "<td class=\"r num\">" + x.bug_opened + " / " + x.bug_closed + "</td>" +
+        "<td class=\"r num\">" + x.bug_unresolved + "</td>" +
+        "<td><div class=\"weekbars\" aria-label=\"Tests passing at the end of each week\">" + o.weeks.map(function (y, i) {
+          return "<span class=\"" + (i === week ? "cur" : "") + "\" style=\"height:" + Math.max(2, 30 * y.tp_e / maxW).toFixed(1) + "px\" title=\"" + weekLabel(O.weeks[i]) + ": " + y.tp_e + " passing\"></span>";
+        }).join("") + "</div></td>" +
+        "<td><button type=\"button\" class=\"who-btn\" data-owner=\"" + esc(o.owner) + "\">" + (ownerFilter === o.owner ? "Showing tests" : "Show tests") + "</button></td></tr>";
+    });
+    $("owners").innerHTML = h + "</tbody>";
+    var tp = 0, ts = 0, nf = 0, fx = 0;
+    O.list.forEach(function (o) { var x = o.weeks[week]; tp += x.tp_e; ts += x.tp_s; nf += x.new_fail; fx += x.fixed; });
+    $("own-note").textContent = "Week " + weekLabel(wk) + ", " + wk.runs + " run" + (wk.runs === 1 ? "" : "s") + (first ? "" : " after " + wk.start_run) + ". " +
+      (first ? tp + " tests passing at week end." : "Tests passing went from " + ts + " to " + tp + "; " + nf + " new failure" + (nf === 1 ? "" : "s") + ", " + fx + " fixed.");
+  }
+
   /* ---------- tree ---------- */
   function renderTree() {
-    var h = "<thead><tr><th>Name</th><th>Tests passing</th><th>Sim pass rate</th><th class=\"r\">Change</th><th>Trend</th><th class=\"r\">New fails</th><th class=\"r\">Fixed</th><th class=\"r\">Fail / timeout / error sims</th></tr></thead><tbody>";
+    var h = "<thead><tr><th>Name</th><th>Tests passing</th><th>Sim pass rate</th><th class=\"r\">Change</th><th>Trend</th><th class=\"r\">New fails</th><th class=\"r\">Fixed</th><th class=\"r\">Fail / timeout / error sims</th>" + (O ? "<th>Owner</th>" : "") + "</tr></thead><tbody>";
     function row(id, depth) {
       var n = byId[id], ch = kids(n), r = rate(n, L), pr = N > 1 ? rate(n, L - 1) : null, d = r != null && pr != null ? r - pr : null;
       var lat = n.latest;
@@ -260,7 +325,8 @@
         "<td>" + spark(n.total.map(function (_, i) { return rate(n, i); }), 90, 22) + "</td>" +
         "<td class=\"r" + (n.new_fail ? " down" : " count0") + "\">" + n.new_fail + "</td>" +
         "<td class=\"r" + (n.fixed ? " up" : " count0") + "\">" + n.fixed + "</td>" +
-        "<td class=\"r num\">" + lat.fail + " / " + lat.timeout + " / " + lat.error + "</td></tr>";
+        "<td class=\"r num\">" + lat.fail + " / " + lat.timeout + " / " + lat.error + "</td>" +
+        (O ? "<td class=\"own\">" + (n.owners.length <= 2 ? n.owners.map(esc).join(", ") : n.owners.length + " owners") + "</td>" : "") + "</tr>";
       if (expanded[id]) ch.forEach(function (c) { row(c, depth + 1); });
     }
     row("all", 0);
@@ -270,6 +336,7 @@
   /* ---------- tests ---------- */
   var FILTERS = [["all", "All"], ["failing", "Failing"], ["new", "New failures"], ["fixed", "Fixed"], ["flaky", "Flipping"], ["notrun", "Not run"]];
   function matches(t) {
+    if (ownerFilter && t.o !== ownerFilter) return false;
     if (filter === "failing" && (t.status === "PASS" || t.status === "NOT RUN")) return false;
     if (filter === "new" && !t.new) return false;
     if (filter === "fixed" && !t.fixed) return false;
@@ -280,16 +347,16 @@
   }
   function rank(t) { return t.new ? 0 : t.status === "PASS" ? (t.fixed ? 3 : 4) : t.status === "NOT RUN" ? 5 : 1; }
   function renderFilters() {
-    var all = testsIn(byId[sel]);
+    var all = testsIn(byId[sel]).filter(function (t) { return !ownerFilter || t.o === ownerFilter; });
     var counts = { all: all.length, failing: 0, new: 0, fixed: 0, flaky: 0, notrun: 0 };
     all.forEach(function (t) { if (t.status !== "PASS" && t.status !== "NOT RUN") counts.failing++; if (t.new) counts.new++; if (t.fixed) counts.fixed++; if (t.flips >= 2) counts.flaky++; if (t.status === "NOT RUN") counts.notrun++; });
-    $("filters").innerHTML = FILTERS.map(function (f) { return "<button type=\"button\" class=\"chip\" data-filter=\"" + f[0] + "\" aria-pressed=\"" + (filter === f[0]) + "\">" + f[1] + " <span class=\"muted\">" + counts[f[0]] + "</span></button>"; }).join("");
+    $("filters").innerHTML = (ownerFilter ? "<button type=\"button\" class=\"chip\" data-clear-owner aria-label=\"Stop filtering by owner\" aria-pressed=\"true\">Owner: " + esc(ownerFilter) + " ✕</button>" : "") + FILTERS.map(function (f) { return "<button type=\"button\" class=\"chip\" data-filter=\"" + f[0] + "\" aria-pressed=\"" + (filter === f[0]) + "\">" + f[1] + " <span class=\"muted\">" + counts[f[0]] + "</span></button>"; }).join("");
   }
   function renderTests() {
     var n = byId[sel], depth = n.path.length;
     var rows = testsIn(n).filter(matches).sort(function (a, b) { return rank(a) - rank(b) || (a.mod + a.inst + a.test < b.mod + b.inst + b.test ? -1 : 1); });
     if (!rows.length) { $("tests").innerHTML = "<p class=\"empty\">No tests match this filter here.</p>"; $("more").hidden = true; $("tests-note").textContent = ""; return; }
-    var h = "<table class=\"tests\"><thead><tr><th>Test</th>" + (depth < 3 ? "<th>Where</th>" : "") + "<th>Last " + D.history + " runs, oldest → latest</th><th class=\"r\">Seeds passing</th><th>Status</th><th>Since</th><th>First error in latest run</th></tr></thead><tbody>";
+    var h = "<table class=\"tests\"><thead><tr><th>Test</th>" + (depth < 3 ? "<th>Where</th>" : "") + "<th>Last " + D.history + " runs, oldest → latest</th><th class=\"r\">Seeds passing</th><th>Status</th><th>Since</th>" + (O ? "<th>Owner</th>" : "") + "<th>First error in latest run</th></tr></thead><tbody>";
     rows.slice(0, limit).forEach(function (t) {
       var where = [t.ss, t.mod, t.inst].slice(depth).filter(function (p, i, arr) { return !(i === arr.length - 1 && p === t.mod && arr.length > 1); });
       var st = t.status === "PASS" ? "ok" : t.status === "TIMEOUT" ? "warn" : t.status === "NOT RUN" ? "" : "bad";
@@ -299,17 +366,18 @@
         "<td class=\"r\">" + esc(t.seeds || "–") + "</td>" +
         "<td>" + (st ? "<span class=\"pill " + st + "\">" + t.status.toLowerCase() + "</span>" : "<span class=\"muted\">not run</span>") + "</td>" +
         "<td class=\"mono\" style=\"font-size:.78rem;white-space:nowrap\">" + esc(t.since || "–") + "</td>" +
+        (O ? "<td class=\"own\" style=\"font-size:.8rem;white-space:nowrap\">" + esc(t.o) + "</td>" : "") +
         "<td class=\"sig\" style=\"max-width:380px\">" + esc(t.sig) + "</td></tr>";
     });
     $("tests").innerHTML = h + "</tbody></table>";
     var more = $("more");
     more.hidden = rows.length <= limit;
     more.textContent = "Show all " + rows.length + " tests";
-    $("tests-note").textContent = rows.length + " test" + (rows.length === 1 ? "" : "s") + " in " + n.name + (filter === "all" && !query ? "" : " match") + ". A test passes a run only if every seed passed.";
+    $("tests-note").textContent = rows.length + " test" + (rows.length === 1 ? "" : "s") + " in " + n.name + (ownerFilter ? " owned by " + ownerFilter : "") + (filter === "all" && !query ? "" : " match") + ". A test passes a run only if every seed passed.";
   }
 
   function renderAll() {
-    renderHeader(); renderKpis(); renderTrend(); renderSigs(); renderTree(); renderFilters(); renderTests();
+    renderHeader(); renderKpis(); renderTrend(); renderSigs(); renderOwners(); renderTree(); renderFilters(); renderTests();
     $("footer").textContent = "Generated " + D.generated + " by socdash.py from the project's regression results. Instances are grouped by the CSV's subsystem and instance columns, or by \"subsystems\" in config.json.";
   }
 
@@ -325,8 +393,17 @@
   }
 
   document.addEventListener("click", function (e) {
-    var t = e.target.closest("[data-node],[data-toggle],[data-filter],#more,#expand-all,#collapse-all");
+    var t = e.target.closest("[data-node],[data-toggle],[data-filter],[data-week],[data-owner],[data-clear-owner],#more,#expand-all,#collapse-all");
     if (!t) return;
+    if (t.hasAttribute("data-week")) { week = +t.getAttribute("data-week"); renderOwners(); return; }
+    if (t.hasAttribute("data-owner")) {
+      var who = t.getAttribute("data-owner");
+      ownerFilter = ownerFilter === who ? null : who;
+      if (ownerFilter) { filter = "all"; select("all"); $("tests-band").scrollIntoView({ behavior: "smooth", block: "start" }); }
+      else { renderOwners(); renderFilters(); renderTests(); }
+      return;
+    }
+    if (t.hasAttribute("data-clear-owner")) { ownerFilter = null; renderOwners(); renderFilters(); renderTests(); return; }
     if (t.hasAttribute("data-toggle")) { var id = t.getAttribute("data-toggle"); expanded[id] = !expanded[id]; renderTree(); var b = document.querySelector("[data-toggle=\"" + id + "\"]"); if (b) b.focus(); return; }
     if (t.hasAttribute("data-node")) { select(t.getAttribute("data-node")); return; }
     if (t.hasAttribute("data-filter")) { filter = t.getAttribute("data-filter"); limit = 150; renderFilters(); renderTests(); return; }

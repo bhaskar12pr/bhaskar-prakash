@@ -25,6 +25,12 @@ subsystem → module → instance → test:
   started, and the first error. Filter by failing, new failures, fixed, flipping (pass/fail
   changed at least twice) or not run, or search by name.
 
+* **Owner progress by week**, when the project has an `owners.csv`. Pick a week; each owner's
+  row shows tests passing at the start and end of the week, new failures, fixes, tests added,
+  the week's sim pass rate and its change from the week before, bugs opened and closed, bugs
+  still open at week end, and a small chart of tests passing at the end of each week. "Show
+  tests" lists that owner's tests below. The tree and test list also gain an owner column.
+
 Select any subsystem, module or instance in the tree and every panel follows; the URL keeps
 the selection (`orion-soc-regression.html#memory-ss--ddr-ctrl--u-ddr1`) so you can share it.
 A test passes a run only if every seed passed.
@@ -76,7 +82,7 @@ python3 socdash.py build --data projects/orion_soc --out orion.html
 
 ## Project files
 
-Each project folder holds the five files below.
+Each project folder holds the files below; `owners.csv` is optional.
 
 ### `regression_runs.csv` — one row per simulation
 
@@ -130,6 +136,30 @@ test from `+UVM_TESTNAME=` or `Running test`, the seed from `ntb_random_seed` / 
 * status: `open`, `fixed` (RTL fix is in, waiting for a clean regression) or `closed`.
   Both `open` and `fixed` count as unresolved for sign-off.
 
+### `owners.csv` (optional)
+
+Who owns what, one row per area:
+
+```csv
+owner,scope
+Asha,memory_ss
+Elif,ddr_ctrl/u_ddr1
+Ben,connectivity_ss
+Asha,pcie_ctrl/u_pcie0/completion_timeout
+```
+
+`scope` is a subsystem, a module, `module/instance`, or `module/instance/test`. The most
+specific match wins, so above Elif owns `u_ddr1` while Asha owns the rest of `memory_ss`.
+Anything no row covers is shown as "(unassigned)". A scope that matches nothing in the
+regression results, or the same scope given to two owners, is rejected with the file and line.
+
+Bugs go to the owner of their block. To assign a bug to someone else (for example the owner of
+one instance), add an optional `owner` column to `bugs.csv`.
+
+Weeks end on the project's as-of date (the latest run date unless `as_of` is set) and step
+back 7 days at a time; weeks without runs are skipped. A week's "start" is the last run before
+it began and its "end" is its last run.
+
 ### `testplan.csv`
 
 `id, block, feature, item, milestone, status, test` with status `planned`, `written` or
@@ -168,6 +198,7 @@ milestones, criteria, file names and settings.
 | `settings.bug_trend_weeks` | weeks shown in the bug trend | 10 |
 | `settings.stale_after_days` | overview flags a project whose latest run is older than this | 3 |
 | `settings.test_history_runs` | runs shown in each test's history strip on the regression page | 10 |
+| `settings.owner_weeks` | weeks offered in the owner progress picker | 6 |
 | `subsystems` | group blocks into subsystems when the regression CSV has no `subsystem` column | none |
 | `milestones` | ordered list of `name`, `date` and `criteria` | none |
 

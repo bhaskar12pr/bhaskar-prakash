@@ -305,6 +305,64 @@ class RegressionTreeTest(unittest.TestCase):
             self.assertIn('"regression_href":"orion-regression.html"', out.read_text())
 
 
+class OwnerTest(unittest.TestCase):
+    def test_most_specific_scope_wins(self):
+        owner = socdash.owner_lookup([{"owner": "A", "scope": "mem"}, {"owner": "B", "scope": "ddr/u1"},
+                                      {"owner": "C", "scope": "ddr/u0/t9"}, {"owner": "D", "scope": "dma"}])
+        self.assertEqual(owner("mem", "ddr", "u0", "t1"), "A")
+        self.assertEqual(owner("mem", "ddr", "u1", "t1"), "B")
+        self.assertEqual(owner("mem", "ddr", "u0", "t9"), "C")
+        self.assertEqual(owner("mem", "dma", "u0", "t1"), "D")
+        self.assertEqual(owner("io", "uart", "u0", "t1"), socdash.UNASSIGNED)
+
+    def week_runs(self):
+        # Week 1 ends 11-07 (runs on 11-06, 11-07), week 2 ends 11-14 (runs on 11-10, 11-14).
+        rows = []
+        for day, a, b in ((6, "PASS", "FAIL"), (7, "PASS", "FAIL"), (10, "FAIL", "PASS"), (14, "FAIL", "PASS")):
+            rows.append(run_row(f"r{day}", a, block="ddr", inst="u0", ss="mem", test="ta"))
+            rows.append(run_row(f"r{day}", b, block="ddr", inst="u1", ss="mem", test="tb"))
+        rows.append(run_row("r14", "PASS", block="ddr", inst="u1", ss="mem", test="tnew"))
+        for r in rows:
+            r["date"] = socdash.dt.date(2026, 11, int(r["run_id"][1:]))
+        return rows
+
+    def test_weekly_progress_per_owner(self):
+        data = tree_data(self.week_runs())
+        data["config"]["settings"]["owner_weeks"] = 3
+        data["owners"] = [{"owner": "Asha", "scope": "mem"}, {"owner": "Elif", "scope": "ddr/u1"}]
+        data["bugs"] = [{"block": "ddr", "opened": socdash.dt.date(2026, 11, 9), "closed": None, "owner": "Elif"},
+                        {"block": "ddr", "opened": socdash.dt.date(2026, 11, 2), "closed": socdash.dt.date(2026, 11, 12),
+                         "owner": ""}]
+        owners = socdash.regression_tree(data)["owners"]
+        self.assertEqual([w["end"] for w in owners["weeks"]], ["2026-11-07", "2026-11-14"])  # empty week dropped
+        self.assertEqual([w["start_run"] for w in owners["weeks"]], [None, "r7"])
+        by = {o["owner"]: o for o in owners["list"]}
+        asha, elif_ = by["Asha"]["weeks"][1], by["Elif"]["weeks"][1]
+        self.assertEqual((asha["tp_s"], asha["tp_e"], asha["new_fail"], asha["fixed"]), (1, 0, 1, 0))
+        self.assertEqual((elif_["tp_s"], elif_["tp_e"], elif_["fixed"], elif_["added"]), (0, 2, 1, 1))
+        self.assertEqual((elif_["sims"], elif_["sims_pass"]), (3, 3))
+        self.assertEqual((elif_["bug_opened"], elif_["bug_unresolved"]), (1, 1))
+        self.assertEqual((asha["bug_closed"], asha["bug_unresolved"]), (1, 0))
+
+    def test_owner_file_errors(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proj = Path(tmp, "p")
+            shutil.copytree(ORION, proj)
+            (proj / "owners.csv").write_text("owner,scope\nAsha,ddr_ctl\n")
+            with self.assertRaises(socdash.InputError) as ctx:
+                socdash.load(proj)
+            self.assertIn("owners.csv:2: scope 'ddr_ctl' matches no", str(ctx.exception))
+            (proj / "owners.csv").write_text("owner,scope\nAsha,ddr_ctrl\nBen,ddr_ctrl\n")
+            with self.assertRaises(socdash.InputError) as ctx:
+                socdash.load(proj)
+            self.assertIn("already owned by Asha", str(ctx.exception))
+
+    def test_projects_without_owners_have_no_owner_view(self):
+        tree = socdash.regression_tree(socdash.load(HERE / "projects" / "nova_io_hub"))
+        self.assertIsNone(tree["owners"])
+        self.assertEqual({t["o"] for t in tree["tests"]}, {""})
+
+
 class CollectLayoutTest(unittest.TestCase):
     def test_layout_fills_subsystem_and_instance(self):
         with tempfile.TemporaryDirectory() as tmp:

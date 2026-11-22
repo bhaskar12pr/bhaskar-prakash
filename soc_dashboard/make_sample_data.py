@@ -25,7 +25,7 @@ CRASH_SIG = "no UVM report summary (crash or killed)"
 #   lag: percentage points behind coverage target; also lowers testplan maturity
 
 ORION = {
-    "folder": "orion_soc", "seed": 20261121, "runs": 14, "seeds_per_test": 2, "maturity": 0.0,
+    "folder": "orion_soc", "seed": 20261121, "runs": 28, "seeds_per_test": 2, "maturity": 0.0,
     "blocks": {
         "cpu_cluster": dict(tests=["smoke_boot", "cache_coherency", "mmu_walk", "irq_latency", "wfi_wakeup",
                                    "atomic_ops", "debug_halt", "l2_ecc_inject", "branch_pred_stress", "multi_core_sync"],
@@ -83,9 +83,15 @@ ORION = {
     # Instance-specific failure multipliers: u_ddr1 sits on the slower PHY corner.
     "instance_weight": {"u_ddr1": 1.5, "u_ddr0": 0.6, "u_usb1": 1.4, "u_cpu_cl1": 1.2},
     # Tests added to the regression partway through (run index they first run in).
-    "late_tests": {("ddr_ctrl", "row_hammer_mitigation"): 5, ("sec_crypto", "side_channel_mask"): 8,
-                   ("pcie_ctrl", "aspm_l1"): 3, ("cpu_cluster", "branch_pred_stress"): 6,
-                   ("usb3_ctrl", "hot_plug"): 10},
+    "late_tests": {("ddr_ctrl", "row_hammer_mitigation"): 10, ("sec_crypto", "side_channel_mask"): 16,
+                   ("pcie_ctrl", "aspm_l1"): 6, ("cpu_cluster", "branch_pred_stress"): 12,
+                   ("usb3_ctrl", "hot_plug"): 22, ("noc_fabric", "outstanding_max"): 25},
+    # owners.csv rows: (owner, scope). The most specific scope wins, so u_ddr1 overrides memory_ss.
+    "owners": [("Asha", "memory_ss"), ("Elif", "ddr_ctrl/u_ddr1"), ("Chen", "compute_ss"),
+               ("Ben", "connectivity_ss"), ("Dana", "platform_ss"),
+               ("Asha", "pcie_ctrl/u_pcie0/completion_timeout")],
+    # bugs.csv owner column: bugs on u_ddr1 belong to its owner, not the memory_ss owner.
+    "bug_owner": {"DV-101": "Elif", "DV-103": "Elif"},
     # (block, test) -> (signature index, only this instance or None)
     "sticky": {("ddr_ctrl", "ecc_double_bit"): (0, "u_ddr1"), ("pcie_ctrl", "completion_timeout"): (0, None)},
     "flaky": {("noc_fabric", "deadlock_stress"): 0.45, ("usb3_ctrl", "u1_u2_lpm"): 0.3,
@@ -166,6 +172,9 @@ LYRA = {
     "subsystems": {"cpu_ss": ["cpu_cluster", "pmu"], "multimedia_ss": ["gpu_core", "isp_pipeline", "mipi_csi"],
                    "memory_ss": ["lpddr5_ctrl"]},
     "late_tests": {("gpu_core", "mmu_fault"): 9, ("isp_pipeline", "hdr_merge"): 4},
+    # pmu has no owner yet, so it shows as unassigned.
+    "owners": [("Farah", "cpu_cluster"), ("Gus", "multimedia_ss"), ("Hana", "memory_ss"),
+               ("Hana", "isp_pipeline")],
     "sticky": {},
     "flaky": {("gpu_core", "compute_dispatch"): 0.15},
     "bugs": [
@@ -329,13 +338,19 @@ def write_project(spec):
         header += ["subsystem", "instance"]
     write_csv(out / files["regression"], header, regression_rows(spec, rng))
     write_csv(out / files["coverage"], ["block", "metric", "covered", "total", "target_pct"], coverage_rows(spec, rng))
-    write_csv(out / files["bugs"], ["id", "title", "block", "severity", "status", "opened", "closed"], bug_rows(spec, rng))
+    bugs, bug_header = bug_rows(spec, rng), ["id", "title", "block", "severity", "status", "opened", "closed"]
+    if spec.get("bug_owner"):
+        bug_header.append("owner")
+        bugs = [row + [spec["bug_owner"].get(row[0], "")] for row in bugs]
+    write_csv(out / files["bugs"], bug_header, bugs)
     write_csv(out / files["testplan"], ["id", "block", "feature", "item", "milestone", "status", "test"],
               testplan_rows(spec, rng))
     config = dict(spec["config"])
     if "subsystems" in config:  # projects without hierarchy columns group blocks here instead
         config["subsystems"] = spec["subsystems"]
     (out / "config.json").write_text(json.dumps(config, indent=2) + "\n")
+    if spec.get("owners"):
+        write_csv(out / "owners.csv", ["owner", "scope"], spec["owners"])
     print(f"Wrote {out}")
 
 

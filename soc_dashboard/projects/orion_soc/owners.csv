@@ -1,0 +1,7 @@
+owner,scope
+Asha,memory_ss
+Elif,ddr_ctrl/u_ddr1
+Chen,compute_ss
+Ben,connectivity_ss
+Dana,platform_ss
+Asha,pcie_ctrl/u_pcie0/completion_timeout
