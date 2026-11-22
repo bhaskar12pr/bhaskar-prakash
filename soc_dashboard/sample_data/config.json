@@ -1,0 +1,47 @@
+{
+  "project": "Orion SoC",
+  "current_milestone": "DV 0.8",
+  "milestones": [
+    {
+      "name": "DV 0.5",
+      "date": "2026-10-16",
+      "criteria": {
+        "min_pass_rate": 0.7,
+        "coverage_target_scale": 0.5,
+        "max_unresolved_bugs": {
+          "S1": 3
+        },
+        "min_testplan_written": 0.8
+      }
+    },
+    {
+      "name": "DV 0.8",
+      "date": "2026-12-11",
+      "criteria": {
+        "min_pass_rate": 0.9,
+        "coverage_target_scale": 0.9,
+        "max_unresolved_bugs": {
+          "S1": 0,
+          "S2": 5
+        },
+        "min_testplan_written": 0.95,
+        "min_testplan_passing": 0.8
+      }
+    },
+    {
+      "name": "DV 1.0",
+      "date": "2027-02-05",
+      "criteria": {
+        "min_pass_rate": 0.98,
+        "coverage_target_scale": 1.0,
+        "max_unresolved_bugs": {
+          "S1": 0,
+          "S2": 0,
+          "S3": 3
+        },
+        "min_testplan_written": 1.0,
+        "min_testplan_passing": 1.0
+      }
+    }
+  ]
+}
