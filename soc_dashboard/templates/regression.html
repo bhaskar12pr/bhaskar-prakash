@@ -1,0 +1,341 @@
+<title>__TITLE__</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600&display=swap">
+<style>
+/*__CSS__*/
+/* Regression drill-down: pick a node in the subsystem > module > instance tree; every panel follows it. */
+.crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; font-size: .9rem; }
+.crumbs button { font: 500 .88rem var(--font-mono); background: none; border: 0; padding: 2px 4px; color: var(--accent); cursor: pointer; border-radius: 3px; }
+.crumbs button:hover { background: var(--accent-soft); }
+.crumbs .here { font: 600 .88rem var(--font-mono); color: var(--ink); padding: 2px 4px; }
+.crumbs .sep { color: var(--muted); }
+.lvl { font: 500 .66rem var(--font-body); text-transform: uppercase; letter-spacing: .07em; color: var(--muted); border: 1px solid var(--line); border-radius: 3px; padding: 0 5px; white-space: nowrap; }
+
+.tree { min-width: 900px; }
+.tree td { vertical-align: middle; padding-block: 6px; }
+.tree tr.sel td { background: var(--accent-soft); }
+.tree tr:hover td { background: var(--sunken); }
+.tree tr.sel:hover td { background: var(--accent-soft); }
+.tree .name { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.tree .tog { width: 20px; height: 20px; flex: none; border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 3px; cursor: pointer; font: 600 .8rem/1 var(--font-mono); padding: 0; }
+.tree .tog:hover { border-color: var(--accent); color: var(--accent); }
+.tree .tog-space { width: 20px; flex: none; }
+.tree .pick { font: 500 .86rem var(--font-mono); background: none; border: 0; padding: 2px 4px; color: var(--ink); cursor: pointer; border-radius: 3px; text-align: left; }
+.tree .pick:hover { color: var(--accent); text-decoration: underline; }
+.tree tr[data-level="subsystem"] .pick { font-weight: 600; }
+.prog { display: grid; grid-template-columns: minmax(80px, 1fr) auto; gap: 8px; align-items: center; min-width: 170px; }
+.prog .stack { height: 10px; }
+.s-failing { background: var(--fail); } .s-notrun { background: var(--planned); }
+.tree svg { display: block; width: 90px; height: 22px; }
+.count0 { color: var(--muted); }
+
+.filters { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.filters input { font: .85rem var(--font-body); padding: 5px 9px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--ink); min-width: 0; width: 220px; max-width: 100%; }
+.tests { min-width: 980px; }
+.tests td { vertical-align: middle; }
+.where { font: .76rem var(--font-mono); color: var(--muted); white-space: nowrap; }
+.strip span.none { background: transparent; border: 1px dashed var(--line); }
+.tag-new { font: 600 .66rem var(--font-body); text-transform: uppercase; letter-spacing: .06em; color: var(--fail); margin-left: 6px; }
+.tag-fixed { font: 600 .66rem var(--font-body); text-transform: uppercase; letter-spacing: .06em; color: var(--pass); margin-left: 6px; }
+.chip[aria-pressed="true"] .muted { color: inherit; opacity: .8; }
+.more { font: 500 .84rem var(--font-body); color: var(--accent); background: none; border: 1px solid var(--line); border-radius: 4px; padding: 6px 12px; cursor: pointer; justify-self: start; }
+.kpi .bar { display: flex; height: 8px; border-radius: 2px; overflow: hidden; background: var(--sunken); margin-top: 4px; }
+.kpi .bar span { display: block; height: 100%; }
+</style>
+<!--BODY-->
+<div class="wrap">
+  <header class="top">
+    <div style="display:grid;gap:6px;min-width:0">
+      <span class="label" id="links"></span>
+      <h1 id="title"></h1>
+      <div class="meta" id="meta"></div>
+    </div>
+  </header>
+
+  <nav class="crumbs" id="crumbs" aria-label="Selected part of the design"></nav>
+
+  <div class="kpis" id="kpis"></div>
+
+  <section class="band">
+    <div class="band-head"><h2>Progress</h2><p id="prog-note"></p></div>
+    <div class="grid">
+      <div class="panel span-7">
+        <div class="panel-head"><h3 id="trend-title">Pass rate and tests per nightly run</h3><span class="legend"><span><i style="background:var(--accent)"></i>sim pass rate</span><span><i class="s-passing"></i>tests passing</span><span><i class="s-failing"></i>tests failing</span></span></div>
+        <div id="trend"></div>
+      </div>
+      <div class="panel span-5">
+        <div class="panel-head"><h3>Failing tests by signature</h3></div>
+        <div class="scroll" id="sigs"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="band-head"><h2>Subsystems, modules and instances</h2><p>Select a name to focus every panel on it. Progress counts tests in the latest run.</p></div>
+    <div class="panel">
+      <div class="panel-head">
+        <span class="legend"><span><i class="s-passing"></i>passing</span><span><i class="s-failing"></i>failing</span><span><i class="s-notrun"></i>not run in latest</span></span>
+        <span class="filters"><button type="button" class="chip" id="expand-all">Expand all</button><button type="button" class="chip" id="collapse-all">Collapse to subsystems</button></span>
+      </div>
+      <div class="scroll"><table class="tree" id="tree"></table></div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="band-head"><h2>Tests</h2><p id="tests-note"></p></div>
+    <div class="panel">
+      <div class="panel-head">
+        <div class="filters" id="filters" role="group" aria-label="Filter tests"></div>
+        <input type="search" id="search" placeholder="Filter by test or instance" aria-label="Filter by test or instance">
+      </div>
+      <div class="scroll" id="tests"></div>
+      <button type="button" class="more" id="more" hidden></button>
+    </div>
+  </section>
+
+  <footer id="footer"></footer>
+</div>
+
+<script type="application/json" id="socdash-data">__SOCDASH_DATA__</script>
+<script>
+(function () {
+  "use strict";
+  var D = JSON.parse(document.getElementById("socdash-data").textContent);
+  var SVGNS = "http://www.w3.org/2000/svg";
+  var byId = {}; D.nodes.forEach(function (n) { byId[n.id] = n; });
+  var root = byId.all;
+  var N = D.runs.length, L = N - 1;
+  var sel = "all", filter = "all", query = "", limit = 150;
+  var expanded = {}; root.children.forEach(function (c) { expanded[c] = true; }); expanded.all = true;
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function pct(x, d) { return x == null || isNaN(x) ? "–" : (100 * x).toFixed(d == null ? 1 : d) + "%"; }
+  function rate(n, i) { return n.total[i] ? n.pass[i] / n.total[i] : null; }
+  function shortDate(iso) { var p = iso.split("-"); return ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][+p[1] - 1] + " " + (+p[2]); }
+  function el(parent, tag, attrs, text) { var e = document.createElementNS(SVGNS, tag); for (var k in attrs) e.setAttribute(k, attrs[k]); if (text != null) e.textContent = text; parent.appendChild(e); return e; }
+  function need() { return D.need == null ? 0.9 : D.need; }
+  function rateClass(r) { return r == null ? "" : r >= need() ? "ok" : r >= need() - 0.05 ? "warn" : "bad"; }
+  // A module whose only instance carries the module's own name has no separate instance level.
+  function kids(n) { return n.children.filter(function (c) { var k = byId[c]; return !(k.level === "instance" && n.children.length === 1 && k.name === n.name); }); }
+  function inScope(t, n) { for (var i = 0; i < n.path.length; i++) if ([t.ss, t.mod, t.inst][i] !== n.path[i]) return false; return true; }
+  function testsIn(n) { return D.tests.filter(function (t) { return inScope(t, n); }); }
+  function passingNow(n) { return n.tp[L]; }
+  function failingNow(n) { return n.tf[L]; }
+
+  function spark(values, w, h) {
+    var v = values.filter(function (x) { return x != null; }); if (v.length < 2) return "";
+    var lo = Math.min.apply(null, v), hi = Math.max.apply(null, v); if (hi - lo < 1e-9) { lo -= 0.01; hi += 0.01; }
+    var pts = []; values.forEach(function (x, i) { if (x != null) pts.push([(i * (w - 6) / (values.length - 1) + 3).toFixed(1), (h - 3 - (x - lo) / (hi - lo) * (h - 6)).toFixed(1)]); });
+    var last = pts[pts.length - 1];
+    return "<svg viewBox=\"0 0 " + w + " " + h + "\" aria-hidden=\"true\"><path d=\"M" + pts.map(function (p) { return p.join(","); }).join("L") + "\" fill=\"none\" stroke=\"var(--accent)\" stroke-width=\"1.5\" stroke-linejoin=\"round\"/><circle cx=\"" + last[0] + "\" cy=\"" + last[1] + "\" r=\"2.4\" fill=\"var(--accent)\"/></svg>";
+  }
+  function progBar(n) {
+    var p = passingNow(n), f = failingNow(n), nr = n.not_run, tot = n.tests || 1;
+    return "<div class=\"stack\" title=\"" + p + " passing, " + f + " failing, " + nr + " not run\"><span class=\"s-passing\" style=\"width:" + (100 * p / tot).toFixed(2) + "%\"></span><span class=\"s-failing\" style=\"width:" + (100 * f / tot).toFixed(2) + "%\"></span><span class=\"s-notrun\" style=\"width:" + (100 * nr / tot).toFixed(2) + "%\"></span></div>";
+  }
+
+  /* ---------- header and breadcrumb ---------- */
+  function renderHeader() {
+    var links = [];
+    if (D.links.home) links.push("<a class=\"home\" href=\"" + esc(D.links.home) + "\">All projects</a>");
+    if (D.links.project) links.push("<a class=\"home\" href=\"" + esc(D.links.project) + "\">" + esc(D.project) + " dashboard</a>");
+    $("links").innerHTML = links.join(" <span> / </span> ") + (links.length ? " <span> / </span> " : "") + "Regression";
+    $("title").textContent = D.project + " regression";
+    $("meta").innerHTML = "<span>Latest run <b class=\"mono\">" + esc(D.latest_run) + "</b></span><span><b>" + N + "</b> nightly runs from " + esc(D.runs[0].date) + "</span>" +
+      (D.milestone ? "<span>" + esc(D.milestone) + " needs <b>" + pct(need(), 0) + "</b> pass rate</span>" : "");
+    var n = byId[sel], parts = [];
+    for (var d = 0; d <= n.path.length; d++) {
+      var id = d === 0 ? "all" : n.path.slice(0, d).map(slug).join("--");
+      var node = byId[id];
+      if (!node) continue;
+      if (d > 0 && node.level === "instance" && kids(byId[n.path.slice(0, d - 1).map(slug).join("--")]).length === 0) continue;
+      parts.push(id === sel ? "<span class=\"here\">" + esc(node.name) + "</span> <span class=\"lvl\">" + node.level + "</span>"
+        : "<button type=\"button\" data-node=\"" + id + "\">" + esc(node.name) + "</button>");
+    }
+    $("crumbs").innerHTML = parts.join("<span class=\"sep\">›</span>");
+  }
+  function slug(p) { return p.replace(/[^A-Za-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "x"; }
+
+  /* ---------- KPIs ---------- */
+  function renderKpis() {
+    var n = byId[sel], r = rate(n, L), pr = N > 1 ? rate(n, L - 1) : null, d = r != null && pr != null ? r - pr : null;
+    var tot = n.tests || 1;
+    var items = [
+      { label: "Sim pass rate, latest run", value: pct(r), pill: r != null ? "<span class=\"pill " + rateClass(r) + "\">need " + pct(need(), 0) + "</span>" : "",
+        sub: n.pass[L] + " of " + n.total[L] + " sims" + (d != null ? " · <span class=\"" + (d >= 0 ? "up" : "down") + "\">" + (d >= 0 ? "▲ " : "▼ ") + Math.abs(100 * d).toFixed(1) + " pts</span>" : ""),
+        extra: "<div style=\"height:26px\">" + spark(n.total.map(function (_, i) { return rate(n, i); }), 160, 26).replace("<svg ", "<svg preserveAspectRatio=\"none\" style=\"width:100%;height:26px\" ") + "</div>" },
+      { label: "Tests passing", value: passingNow(n) + "<span class=\"muted\" style=\"font-size:1.1rem\"> / " + n.tests + "</span>",
+        sub: failingNow(n) + " failing, " + n.not_run + " not run",
+        extra: "<div class=\"bar\"><span class=\"s-passing\" style=\"width:" + (100 * passingNow(n) / tot) + "%\"></span><span class=\"s-failing\" style=\"width:" + (100 * failingNow(n) / tot) + "%\"></span><span class=\"s-notrun\" style=\"width:" + (100 * n.not_run / tot) + "%\"></span></div>" },
+      { label: "New failures", value: "<span class=\"" + (n.new_fail ? "down" : "") + "\">" + n.new_fail + "</span>", sub: "tests that passed in the previous run" },
+      { label: "Fixed", value: "<span class=\"" + (n.fixed ? "up" : "") + "\">" + n.fixed + "</span>", sub: "tests that failed in the previous run" },
+      { label: "Never passed", value: n.always_fail, sub: "tests with no passing run in " + N + " runs" }
+    ];
+    $("kpis").innerHTML = items.map(function (k) {
+      return "<div class=\"kpi\"><span class=\"label\">" + k.label + "</span><div style=\"display:flex;align-items:baseline;gap:10px;flex-wrap:wrap\"><span class=\"value\">" + k.value + "</span>" + (k.pill || "") + "</div><span class=\"sub\">" + k.sub + "</span>" + (k.extra || "") + "</div>";
+    }).join("");
+  }
+
+  /* ---------- progress chart ---------- */
+  function renderTrend() {
+    var n = byId[sel], W = 640, H = 300, Lm = 40, R = 56, T = 12, s = document.createElementNS(SVGNS, "svg");
+    s.setAttribute("viewBox", "0 0 " + W + " " + H); s.setAttribute("class", "chart"); s.setAttribute("role", "img");
+    s.setAttribute("aria-label", "Pass rate and test counts per run for " + n.name);
+    var cw = (W - Lm - R) / N; function x(i) { return Lm + cw * (i + 0.5); }
+    var rates = n.total.map(function (_, i) { return rate(n, i); });
+    var vals = rates.filter(function (v) { return v != null; }).concat([need()]);
+    var lo = Math.max(0, Math.floor((Math.min.apply(null, vals) - 0.04) * 10) / 10), hi = 1, rb = 128;
+    function y(v) { return T + (hi - v) / (hi - lo) * (rb - T); }
+    for (var g = lo; g <= hi + 1e-9; g += 0.1) { el(s, "line", { x1: Lm, x2: W - R, y1: y(g), y2: y(g), "class": "grid-line" }); el(s, "text", { x: Lm - 6, y: y(g) + 4, "text-anchor": "end" }, Math.round(g * 100) + "%"); }
+    el(s, "line", { x1: Lm, x2: W - R, y1: y(need()), y2: y(need()), stroke: "var(--ink)", "stroke-dasharray": "4 3" });
+    el(s, "text", { x: W - R + 4, y: y(need()) + 4, style: "fill:var(--ink)" }, "need " + Math.round(need() * 100) + "%");
+    var pts = []; rates.forEach(function (v, i) { if (v != null) pts.push([x(i), y(v), i]); });
+    if (pts.length) {
+      el(s, "path", { d: "M" + pts[0][0] + "," + rb + "L" + pts.map(function (p) { return p[0] + "," + p[1]; }).join("L") + "L" + pts[pts.length - 1][0] + "," + rb + "Z", fill: "var(--accent)", "fill-opacity": "0.1" });
+      el(s, "path", { d: "M" + pts.map(function (p) { return p[0] + "," + p[1]; }).join("L"), fill: "none", stroke: "var(--accent)", "stroke-width": 2, "stroke-linejoin": "round" });
+      pts.forEach(function (p) { var c = el(s, "circle", { cx: p[0], cy: p[1], r: p[2] === L ? 4.5 : 2.4, fill: p[2] === L ? "var(--accent)" : "var(--surface)", stroke: "var(--accent)", "stroke-width": 1.4 }); el(c, "title", {}, D.runs[p[2]].run + ": " + pct(rates[p[2]]) + " (" + n.pass[p[2]] + "/" + n.total[p[2]] + " sims)"); });
+      var lp = pts[pts.length - 1], ly = lp[1] - 7;
+      if (Math.abs(ly - (y(need()) + 4)) < 13) ly = lp[1] <= y(need()) ? y(need()) - 10 : y(need()) + 17;
+      el(s, "text", { x: lp[0] + 8, y: ly, "class": "end-label" }, pct(rates[L]));
+    }
+    // tests passing / failing per run
+    var top = rb + 22, bh = 104, base = top + bh;
+    var maxT = Math.max.apply(null, n.tp.map(function (p, i) { return p + n.tf[i]; }).concat([1]));
+    var step = maxT <= 10 ? 2 : maxT <= 25 ? 5 : maxT <= 60 ? 10 : maxT <= 150 ? 25 : 50, tmax = Math.ceil(maxT / step) * step;
+    function yt(v) { return base - v / tmax * bh; }
+    for (var t = 0; t <= tmax; t += step) { el(s, "line", { x1: Lm, x2: W - R, y1: yt(t), y2: yt(t), "class": "grid-line" }); el(s, "text", { x: Lm - 6, y: yt(t) + 4, "text-anchor": "end" }, t); }
+    el(s, "text", { x: W - R + 4, y: top + 8 }, "tests");
+    var bw = Math.min(20, cw * 0.62);
+    for (var i = 0; i < N; i++) {
+      var p = n.tp[i], f = n.tf[i];
+      var r1 = el(s, "rect", { x: x(i) - bw / 2, y: yt(p), width: bw, height: base - yt(p), fill: "var(--pass)" });
+      el(r1, "title", {}, D.runs[i].run + ": " + p + " passing, " + f + " failing");
+      if (f) { var r2 = el(s, "rect", { x: x(i) - bw / 2, y: yt(p + f), width: bw, height: yt(p) - yt(p + f), fill: "var(--fail)" }); el(r2, "title", {}, D.runs[i].run + ": " + f + " failing"); }
+      if (N <= 16 || (L - i) % 2 === 0) el(s, "text", { x: x(i), y: base + 16, "text-anchor": "end", transform: "rotate(-40 " + x(i) + " " + (base + 16) + ")" }, shortDate(D.runs[i].date));
+    }
+    el(s, "text", { x: x(L) + bw / 2 + 4, y: yt(n.tp[L] + n.tf[L]) + 4, "class": "end-label" }, (n.tp[L] + n.tf[L]));
+    $("trend").innerHTML = ""; $("trend").appendChild(s);
+    var first = 0; while (first < L && n.total[first] === 0) first++;
+    var grow = (n.tp[L] + n.tf[L]) - (n.tp[first] + n.tf[first]);
+    $("prog-note").textContent = n.name + ": " + passingNow(n) + " of " + n.tests + " tests passing in " + D.latest_run +
+      (N > 1 ? ". Passing tests went from " + n.tp[first] + " to " + n.tp[L] + " since " + D.runs[first].run + (grow ? ", and " + Math.abs(grow) + " test" + (Math.abs(grow) === 1 ? " was" : "s were") + (grow > 0 ? " added" : " removed") : "") + "." : ".");
+  }
+
+  /* ---------- signatures ---------- */
+  function renderSigs() {
+    var groups = {};
+    testsIn(byId[sel]).forEach(function (t) {
+      if (t.status === "PASS" || t.status === "NOT RUN") return;
+      var g = groups[t.sig] || (groups[t.sig] = { sig: t.sig, tests: [], status: t.status, fresh: 0 });
+      g.tests.push(t); if (t.new) g.fresh++;
+    });
+    var list = Object.keys(groups).map(function (k) { return groups[k]; }).sort(function (a, b) { return b.tests.length - a.tests.length || (a.sig < b.sig ? -1 : 1); });
+    if (!list.length) { $("sigs").innerHTML = "<p class=\"empty\">No failing tests here in the latest run.</p>"; return; }
+    var h = "<table><thead><tr><th>Signature</th><th class=\"r\">Tests</th></tr></thead><tbody>";
+    list.forEach(function (g) {
+      var where = {}; g.tests.forEach(function (t) { where[t.inst] = 1; });
+      var inst = Object.keys(where);
+      h += "<tr><td><div class=\"sig\">" + esc(g.sig) + "</div><div style=\"margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;align-items:center\"><span class=\"pill " + (g.status === "TIMEOUT" ? "warn" : "bad") + "\">" + g.status.toLowerCase() + "</span>" +
+        (g.fresh ? "<span class=\"tag-new\" style=\"margin:0\">" + g.fresh + " new</span>" : "") +
+        "<span class=\"where\">" + inst.slice(0, 4).map(esc).join(", ") + (inst.length > 4 ? " +" + (inst.length - 4) : "") + "</span></div></td><td class=\"r\">" + g.tests.length + "</td></tr>";
+    });
+    $("sigs").innerHTML = h + "</tbody></table>";
+  }
+
+  /* ---------- tree ---------- */
+  function renderTree() {
+    var h = "<thead><tr><th>Name</th><th>Tests passing</th><th>Sim pass rate</th><th class=\"r\">Change</th><th>Trend</th><th class=\"r\">New fails</th><th class=\"r\">Fixed</th><th class=\"r\">Fail / timeout / error sims</th></tr></thead><tbody>";
+    function row(id, depth) {
+      var n = byId[id], ch = kids(n), r = rate(n, L), pr = N > 1 ? rate(n, L - 1) : null, d = r != null && pr != null ? r - pr : null;
+      var lat = n.latest;
+      h += "<tr data-level=\"" + n.level + "\"" + (id === sel ? " class=\"sel\" aria-current=\"true\"" : "") + ">" +
+        "<td><div class=\"name\" style=\"padding-left:" + (depth * 20) + "px\">" +
+        (ch.length ? "<button type=\"button\" class=\"tog\" data-toggle=\"" + id + "\" aria-expanded=\"" + !!expanded[id] + "\" aria-label=\"" + (expanded[id] ? "Collapse " : "Expand ") + esc(n.name) + "\">" + (expanded[id] ? "−" : "+") + "</button>" : "<span class=\"tog-space\"></span>") +
+        "<button type=\"button\" class=\"pick\" data-node=\"" + id + "\">" + esc(n.name) + "</button><span class=\"lvl\">" + n.level + "</span></div></td>" +
+        "<td><div class=\"prog\">" + progBar(n) + "<span class=\"num\">" + passingNow(n) + "<span class=\"muted\">/" + n.tests + "</span></span></div></td>" +
+        "<td><span class=\"pill " + rateClass(r) + "\">" + pct(r) + "</span></td>" +
+        "<td class=\"r " + (d == null ? "" : d > 0 ? "up" : d < 0 ? "down" : "count0") + "\">" + (d == null ? "–" : (d >= 0 ? "+" : "−") + Math.abs(100 * d).toFixed(1)) + "</td>" +
+        "<td>" + spark(n.total.map(function (_, i) { return rate(n, i); }), 90, 22) + "</td>" +
+        "<td class=\"r" + (n.new_fail ? " down" : " count0") + "\">" + n.new_fail + "</td>" +
+        "<td class=\"r" + (n.fixed ? " up" : " count0") + "\">" + n.fixed + "</td>" +
+        "<td class=\"r num\">" + lat.fail + " / " + lat.timeout + " / " + lat.error + "</td></tr>";
+      if (expanded[id]) ch.forEach(function (c) { row(c, depth + 1); });
+    }
+    row("all", 0);
+    $("tree").innerHTML = h + "</tbody>";
+  }
+
+  /* ---------- tests ---------- */
+  var FILTERS = [["all", "All"], ["failing", "Failing"], ["new", "New failures"], ["fixed", "Fixed"], ["flaky", "Flipping"], ["notrun", "Not run"]];
+  function matches(t) {
+    if (filter === "failing" && (t.status === "PASS" || t.status === "NOT RUN")) return false;
+    if (filter === "new" && !t.new) return false;
+    if (filter === "fixed" && !t.fixed) return false;
+    if (filter === "flaky" && t.flips < 2) return false;
+    if (filter === "notrun" && t.status !== "NOT RUN") return false;
+    if (query) { var q = query.toLowerCase(); if ((t.test + " " + t.inst + " " + t.mod + " " + t.ss + " " + t.sig).toLowerCase().indexOf(q) < 0) return false; }
+    return true;
+  }
+  function rank(t) { return t.new ? 0 : t.status === "PASS" ? (t.fixed ? 3 : 4) : t.status === "NOT RUN" ? 5 : 1; }
+  function renderFilters() {
+    var all = testsIn(byId[sel]);
+    var counts = { all: all.length, failing: 0, new: 0, fixed: 0, flaky: 0, notrun: 0 };
+    all.forEach(function (t) { if (t.status !== "PASS" && t.status !== "NOT RUN") counts.failing++; if (t.new) counts.new++; if (t.fixed) counts.fixed++; if (t.flips >= 2) counts.flaky++; if (t.status === "NOT RUN") counts.notrun++; });
+    $("filters").innerHTML = FILTERS.map(function (f) { return "<button type=\"button\" class=\"chip\" data-filter=\"" + f[0] + "\" aria-pressed=\"" + (filter === f[0]) + "\">" + f[1] + " <span class=\"muted\">" + counts[f[0]] + "</span></button>"; }).join("");
+  }
+  function renderTests() {
+    var n = byId[sel], depth = n.path.length;
+    var rows = testsIn(n).filter(matches).sort(function (a, b) { return rank(a) - rank(b) || (a.mod + a.inst + a.test < b.mod + b.inst + b.test ? -1 : 1); });
+    if (!rows.length) { $("tests").innerHTML = "<p class=\"empty\">No tests match this filter here.</p>"; $("more").hidden = true; $("tests-note").textContent = ""; return; }
+    var h = "<table class=\"tests\"><thead><tr><th>Test</th>" + (depth < 3 ? "<th>Where</th>" : "") + "<th>Last " + D.history + " runs, oldest → latest</th><th class=\"r\">Seeds passing</th><th>Status</th><th>Since</th><th>First error in latest run</th></tr></thead><tbody>";
+    rows.slice(0, limit).forEach(function (t) {
+      var where = [t.ss, t.mod, t.inst].slice(depth).filter(function (p, i, arr) { return !(i === arr.length - 1 && p === t.mod && arr.length > 1); });
+      var st = t.status === "PASS" ? "ok" : t.status === "TIMEOUT" ? "warn" : t.status === "NOT RUN" ? "" : "bad";
+      h += "<tr><td><span class=\"mono\">" + esc(t.test) + "</span>" + (t.new ? "<span class=\"tag-new\">new</span>" : t.fixed ? "<span class=\"tag-fixed\">fixed</span>" : "") + "</td>" +
+        (depth < 3 ? "<td class=\"where\">" + where.map(esc).join(" › ") + "</td>" : "") +
+        "<td><span class=\"strip\">" + t.h.split("").map(function (c) { var k = { P: "PASS", F: "FAIL", T: "TIMEOUT", E: "ERROR" }[c]; return "<span class=\"" + (k || "none") + "\" title=\"" + (k ? k.toLowerCase() : "not run") + "\"></span>"; }).join("") + "</span></td>" +
+        "<td class=\"r\">" + esc(t.seeds || "–") + "</td>" +
+        "<td>" + (st ? "<span class=\"pill " + st + "\">" + t.status.toLowerCase() + "</span>" : "<span class=\"muted\">not run</span>") + "</td>" +
+        "<td class=\"mono\" style=\"font-size:.78rem;white-space:nowrap\">" + esc(t.since || "–") + "</td>" +
+        "<td class=\"sig\" style=\"max-width:380px\">" + esc(t.sig) + "</td></tr>";
+    });
+    $("tests").innerHTML = h + "</tbody></table>";
+    var more = $("more");
+    more.hidden = rows.length <= limit;
+    more.textContent = "Show all " + rows.length + " tests";
+    $("tests-note").textContent = rows.length + " test" + (rows.length === 1 ? "" : "s") + " in " + n.name + (filter === "all" && !query ? "" : " match") + ". A test passes a run only if every seed passed.";
+  }
+
+  function renderAll() {
+    renderHeader(); renderKpis(); renderTrend(); renderSigs(); renderTree(); renderFilters(); renderTests();
+    $("footer").textContent = "Generated " + D.generated + " by socdash.py from the project's regression results. Instances are grouped by the CSV's subsystem and instance columns, or by \"subsystems\" in config.json.";
+  }
+
+  function select(id, keepScroll) {
+    if (!byId[id]) id = "all";
+    sel = id; limit = 150;
+    var n = byId[id];
+    for (var d = 1; d < n.path.length; d++) expanded[n.path.slice(0, d).map(slug).join("--")] = true;
+    expanded[id] = true;  // show the selected node's children too
+    var want = id === "all" ? "" : "#" + id;
+    if (location.hash !== want) { try { history.replaceState(null, "", want || location.pathname + location.search); } catch (e) { location.hash = want; } }
+    renderAll();
+  }
+
+  document.addEventListener("click", function (e) {
+    var t = e.target.closest("[data-node],[data-toggle],[data-filter],#more,#expand-all,#collapse-all");
+    if (!t) return;
+    if (t.hasAttribute("data-toggle")) { var id = t.getAttribute("data-toggle"); expanded[id] = !expanded[id]; renderTree(); var b = document.querySelector("[data-toggle=\"" + id + "\"]"); if (b) b.focus(); return; }
+    if (t.hasAttribute("data-node")) { select(t.getAttribute("data-node")); return; }
+    if (t.hasAttribute("data-filter")) { filter = t.getAttribute("data-filter"); limit = 150; renderFilters(); renderTests(); return; }
+    if (t.id === "more") { limit = Infinity; renderTests(); return; }
+    if (t.id === "expand-all") { D.nodes.forEach(function (n) { expanded[n.id] = true; }); renderTree(); return; }
+    if (t.id === "collapse-all") { expanded = { all: true }; renderTree(); return; }
+  });
+  $("search").addEventListener("input", function (e) { query = e.target.value.trim(); limit = 150; renderTests(); });
+  window.addEventListener("hashchange", function () { select(location.hash.replace(/^#/, "") || "all"); });
+  select(location.hash.replace(/^#/, "") || "all");
+})();
+</script>

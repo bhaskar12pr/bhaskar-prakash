@@ -4,6 +4,16 @@
   "files": {
     "regression": "nightly_results.csv"
   },
+  "subsystems": {
+    "serial_ss": [
+      "i2c_ctrl",
+      "spi_ctrl",
+      "uart"
+    ],
+    "pin_ss": [
+      "gpio_mux"
+    ]
+  },
   "milestones": [
     {
       "name": "DV 1.0",

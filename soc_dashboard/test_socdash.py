@@ -178,7 +178,9 @@ class MultiProjectTest(unittest.TestCase):
             root, out = self.make_projects(tmp), Path(tmp, "site")
             self.assertEqual(socdash.build_all(root, out, "Portfolio"), 0)
             self.assertEqual(sorted(p.name for p in out.iterdir()),
-                             ["index.html", "lyra-soc.html", "nova-io-hub.html", "orion-soc.html"])
+                             ["index.html", "lyra-soc-regression.html", "lyra-soc.html",
+                              "nova-io-hub-regression.html", "nova-io-hub.html",
+                              "orion-soc-regression.html", "orion-soc.html"])
             self.assertIn('"home":"index.html"', (out / "orion-soc.html").read_text())
             index = (out / "index.html").read_text()
             for name in ("Orion SoC", "Lyra SoC", "Nova IO Hub", "orion-soc.html"):
@@ -229,6 +231,105 @@ class MultiProjectTest(unittest.TestCase):
             path.parent.mkdir()
             path.write_text("{}")
             self.assertEqual(socdash.load_config(path)["project"], "my_chip")
+
+
+def run_row(run, status, block="ddr_ctrl", inst="", ss="", test="t1", sig=""):
+    return {"run_id": run, "date": socdash.dt.date(2026, 11, int(run[1:])), "block": block, "test": test,
+            "seed": "1", "status": status, "duration_s": None, "signature": sig,
+            "subsystem": ss, "instance": inst}
+
+
+def tree_data(runs, subsystems=None):
+    config = {"project": "P", "settings": dict(socdash.DEFAULT_SETTINGS),
+              "block_subsystem": {b: ss for ss, bs in (subsystems or {}).items() for b in bs}}
+    return {"config": config, "runs": runs}
+
+
+class RegressionTreeTest(unittest.TestCase):
+    def nodes(self, tree):
+        return {n["id"]: n for n in tree["nodes"]}
+
+    def test_rollup_counts_tests_at_every_level(self):
+        runs = [
+            run_row("r1", "PASS", inst="u_ddr0", ss="mem"), run_row("r2", "PASS", inst="u_ddr0", ss="mem"),
+            run_row("r1", "PASS", inst="u_ddr1", ss="mem"), run_row("r2", "FAIL", inst="u_ddr1", ss="mem", sig="[X] bad"),
+            run_row("r1", "FAIL", block="dma", inst="u_dma0", ss="mem"), run_row("r2", "PASS", block="dma", inst="u_dma0", ss="mem"),
+        ]
+        nodes = self.nodes(socdash.regression_tree(tree_data(runs)))
+        mem, ddr, ddr1 = nodes["mem"], nodes["mem--ddr-ctrl"], nodes["mem--ddr-ctrl--u-ddr1"]
+        self.assertEqual((mem["tests"], mem["tp"], mem["tf"]), (3, [2, 2], [1, 1]))
+        self.assertEqual((ddr["tests"], ddr["tp"][-1], ddr["new_fail"], ddr["fixed"]), (2, 1, 1, 0))
+        self.assertEqual((ddr1["new_fail"], ddr1["total"], ddr1["pass"]), (1, [1, 1], [1, 0]))
+        self.assertEqual(nodes["mem--dma"]["fixed"], 1)
+        self.assertEqual(nodes["all"]["children"], ["mem"])
+
+    def test_one_failing_seed_fails_the_test_and_sims_still_count(self):
+        runs = [run_row("r1", "PASS"), run_row("r1", "FAIL", sig="[X] e")]
+        tree = socdash.regression_tree(tree_data(runs))
+        top = self.nodes(tree)["all"]
+        self.assertEqual((top["tp"], top["tf"], top["pass"], top["total"]), ([0], [1], [1], [2]))
+        self.assertEqual(tree["tests"][0]["seeds"], "1/2")
+        self.assertEqual(tree["tests"][0]["sig"], "[X] e")
+
+    def test_config_subsystems_and_default_instance(self):
+        runs = [run_row("r1", "PASS", block="uart"), run_row("r1", "PASS", block="gpio")]
+        nodes = self.nodes(socdash.regression_tree(tree_data(runs, {"serial": ["uart"]})))
+        self.assertIn("serial--uart--uart", nodes)  # instance defaults to the module name
+        self.assertIn(socdash.node_slug((socdash.UNGROUPED, "gpio")), nodes)
+
+    def test_not_run_since_and_never_passed(self):
+        runs = [run_row("r1", "PASS", test="a"), run_row("r2", "FAIL", test="a"), run_row("r3", "FAIL", test="a"),
+                run_row("r1", "PASS", test="gone"),
+                run_row("r1", "FAIL", test="bad"), run_row("r2", "FAIL", test="bad"), run_row("r3", "FAIL", test="bad")]
+        tree = socdash.regression_tree(tree_data(runs))
+        tests = {t["test"]: t for t in tree["tests"]}
+        self.assertEqual((tests["a"]["since"], tests["a"]["h"]), ("r2", "PFF"))
+        self.assertEqual((tests["gone"]["status"], tests["gone"]["h"]), ("NOT RUN", "P--"))
+        top = self.nodes(tree)["all"]
+        self.assertEqual((top["not_run"], top["always_fail"]), (1, 1))
+
+    def test_subsystem_listed_twice_is_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, "config.json")
+            path.write_text(json.dumps({"subsystems": {"a": ["x"], "b": ["x"]}}))
+            with self.assertRaises(socdash.InputError) as ctx:
+                socdash.load_config(path)
+            self.assertIn("block 'x' is listed under both", str(ctx.exception))
+
+    def test_build_writes_regression_page_beside_project_page(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp, "orion.html")
+            self.assertEqual(socdash.main(["build", "--data", str(ORION), "--out", str(out)]), 0)
+            reg = Path(tmp, "orion-regression.html").read_text()
+            self.assertIn('"project":"orion.html"', reg)
+            self.assertIn('"regression_href":"orion-regression.html"', out.read_text())
+
+
+class CollectLayoutTest(unittest.TestCase):
+    def test_layout_fills_subsystem_and_instance(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            logs = Path(tmp, "logs")
+            (logs / "memory_ss" / "ddr_ctrl" / "u_ddr1").mkdir(parents=True)
+            (logs / "memory_ss" / "ddr_ctrl" / "u_ddr1" / "a.log").write_text(FAIL_LOG)
+            out = Path(tmp, "runs.csv")
+            socdash.collect(logs, "n1", "2026-11-21", out, None, "*.log", "subsystem/block/instance")
+            with out.open() as f:
+                row = next(csv.DictReader(f))
+            self.assertEqual((row["subsystem"], row["block"], row["instance"], row["status"]),
+                             ("memory_ss", "ddr_ctrl", "u_ddr1", "FAIL"))
+
+    def test_layout_needs_matching_header_and_valid_levels(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            logs = Path(tmp, "logs")
+            (logs / "ss" / "blk").mkdir(parents=True)
+            (logs / "ss" / "blk" / "a.log").write_text(PASS_LOG)
+            out = Path(tmp, "runs.csv")
+            out.write_text(",".join(socdash.REGRESSION_COLS) + "\n")
+            with self.assertRaises(socdash.InputError) as ctx:
+                socdash.collect(logs, "n1", "2026-11-21", out, None, "*.log", "subsystem/block")
+            self.assertIn("lacks column(s) subsystem", str(ctx.exception))
+            with self.assertRaises(socdash.InputError):
+                socdash.collect(logs, "n1", "2026-11-21", out, None, "*.log", "subsystem/module")
 
 
 if __name__ == "__main__":

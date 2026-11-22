@@ -178,3 +178,6 @@ footer { color: var(--muted); font-size: .78rem; }
 a.home { color: var(--accent); text-decoration: none; }
 a.home:hover { text-decoration: underline; }
 a.home::before { content: "← "; }
+a.go { color: var(--accent); text-decoration: none; font-weight: 500; font-size: .88rem; margin-left: auto; }
+a.go:hover { text-decoration: underline; }
+a.go::after { content: " →"; }

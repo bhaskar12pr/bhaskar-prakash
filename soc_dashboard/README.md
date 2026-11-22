@@ -12,7 +12,24 @@ projects side by side. Each project's page answers five questions on one screen:
 | Testplan    | Planned / written / passing items per feature |
 | Sign-off    | Each milestone's criteria evaluated as met or not, with the current milestone highlighted |
 
-Every section can be narrowed to one block with the chips at the top, or by selecting a row in
+Each project also gets a **regression page** (`<project>-regression.html`) that drills down
+subsystem → module → instance → test:
+
+* **Progress at every level.** Tests passing / failing / not run in the latest run, simulation
+  pass rate with its change and trend, new failures and fixes since the previous run, and
+  failing simulations by fail / timeout / error.
+* **Progress over time.** Pass rate against the milestone bar, and tests passing vs failing
+  in every nightly run, so suite growth and closure both show.
+* **Failing tests grouped by signature**, with the instances they hit.
+* **Per-test detail.** The last N runs as a strip, seeds passing, when the current outcome
+  started, and the first error. Filter by failing, new failures, fixed, flipping (pass/fail
+  changed at least twice) or not run, or search by name.
+
+Select any subsystem, module or instance in the tree and every panel follows; the URL keeps
+the selection (`orion-soc-regression.html#memory-ss--ddr-ctrl--u-ddr1`) so you can share it.
+A test passes a run only if every seed passed.
+
+Every section of the project dashboard can be narrowed to one block with the chips at the top, or by selecting a row in
 the block table. The URL hash keeps the choice (`dashboard.html#ddr-ctrl`).
 
 Only the Python 3.9+ standard library is needed.
@@ -73,6 +90,12 @@ Each project folder holds the five files below.
 | status | `PASS` | `PASS`, `FAIL`, `TIMEOUT` or `ERROR` |
 | duration_s | `412.5` | may be empty |
 | signature | `[ECC_CHK] double-bit error not flagged addr=<HEX>` | first error, with numbers masked so the same failure groups together |
+| subsystem | `memory_ss` | optional; overrides `subsystems` in config.json |
+| instance | `u_ddr1` | optional; defaults to the block (module) name |
+
+`block` is the module. The regression page groups results as subsystem → block → instance.
+Give the hierarchy either as the two optional columns above or, for data without them, as a
+`subsystems` map in `config.json`. Blocks in neither land under "(no subsystem)".
 
 You don't have to write this by hand. `collect` reads UVM logs and appends rows:
 
@@ -81,7 +104,10 @@ python3 socdash.py collect --logs sim/out --run-id nightly_1122 --date 2026-11-2
     --out projects/orion_soc/regression_runs.csv
 ```
 
-It expects `sim/out/<block>/<anything>.log` (or pass `--block NAME`). For each log it takes the
+It expects `sim/out/<block>/<anything>.log` (or pass `--block NAME`). If your logs are
+organised by hierarchy, say so with `--layout`, for example
+`--layout subsystem/block/instance` for `sim/out/memory_ss/ddr_ctrl/u_ddr1/<test>.log`;
+the subsystem and instance columns are then filled in. For each log it takes the
 test from `+UVM_TESTNAME=` or `Running test`, the seed from `ntb_random_seed` / `svseed` /
 `+seed`, and classifies it:
 
@@ -120,6 +146,7 @@ milestones, criteria, file names and settings.
   "current_milestone": "DV 0.8",
   "files": {"regression": "nightly_results.csv"},
   "settings": {"intermittent_window": 10, "bug_trend_weeks": 12, "stale_after_days": 3},
+  "subsystems": {"memory_ss": ["ddr_ctrl", "dma_engine"], "connectivity_ss": ["pcie_ctrl", "usb3_ctrl"]},
   "milestones": [
     {"name": "DV 0.8", "date": "2026-12-11",
      "criteria": {
@@ -140,6 +167,8 @@ milestones, criteria, file names and settings.
 | `settings.intermittent_window` | runs examined for tests that both pass and fail | 7 |
 | `settings.bug_trend_weeks` | weeks shown in the bug trend | 10 |
 | `settings.stale_after_days` | overview flags a project whose latest run is older than this | 3 |
+| `settings.test_history_runs` | runs shown in each test's history strip on the regression page | 10 |
+| `subsystems` | group blocks into subsystems when the regression CSV has no `subsystem` column | none |
 | `milestones` | ordered list of `name`, `date` and `criteria` | none |
 
 Misspelled keys under `files` or `settings`, duplicate milestone names, and a

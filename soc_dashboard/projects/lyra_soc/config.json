@@ -5,6 +5,20 @@
     "intermittent_window": 10,
     "bug_trend_weeks": 12
   },
+  "subsystems": {
+    "cpu_ss": [
+      "cpu_cluster",
+      "pmu"
+    ],
+    "multimedia_ss": [
+      "gpu_core",
+      "isp_pipeline",
+      "mipi_csi"
+    ],
+    "memory_ss": [
+      "lpddr5_ctrl"
+    ]
+  },
   "milestones": [
     {
       "name": "DV 0.8",

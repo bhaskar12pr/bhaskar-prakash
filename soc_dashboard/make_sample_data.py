@@ -72,7 +72,22 @@ ORION = {
                            sigs=["[AES_KAT] ciphertext mismatch vector=<N>",
                                  "[TAMPER] alert not raised within <N> cycles"]),
     },
-    "sticky": {("ddr_ctrl", "ecc_double_bit"): 0, ("pcie_ctrl", "completion_timeout"): 0},
+    # Hierarchy written into regression_runs.csv as subsystem and instance columns.
+    "hierarchy_in_csv": True,
+    "subsystems": {"compute_ss": ["cpu_cluster", "noc_fabric"], "memory_ss": ["ddr_ctrl", "dma_engine"],
+                   "connectivity_ss": ["pcie_ctrl", "usb3_ctrl"], "platform_ss": ["io_mux", "sec_crypto"]},
+    "instances": {"cpu_cluster": ["u_cpu_cl0", "u_cpu_cl1"], "noc_fabric": ["u_noc_main"],
+                  "ddr_ctrl": ["u_ddr0", "u_ddr1"], "dma_engine": ["u_dma0"], "pcie_ctrl": ["u_pcie0"],
+                  "usb3_ctrl": ["u_usb0", "u_usb1"], "io_mux": ["u_iomux_n", "u_iomux_s"],
+                  "sec_crypto": ["u_sec0"]},
+    # Instance-specific failure multipliers: u_ddr1 sits on the slower PHY corner.
+    "instance_weight": {"u_ddr1": 1.5, "u_ddr0": 0.6, "u_usb1": 1.4, "u_cpu_cl1": 1.2},
+    # Tests added to the regression partway through (run index they first run in).
+    "late_tests": {("ddr_ctrl", "row_hammer_mitigation"): 5, ("sec_crypto", "side_channel_mask"): 8,
+                   ("pcie_ctrl", "aspm_l1"): 3, ("cpu_cluster", "branch_pred_stress"): 6,
+                   ("usb3_ctrl", "hot_plug"): 10},
+    # (block, test) -> (signature index, only this instance or None)
+    "sticky": {("ddr_ctrl", "ecc_double_bit"): (0, "u_ddr1"), ("pcie_ctrl", "completion_timeout"): (0, None)},
     "flaky": {("noc_fabric", "deadlock_stress"): 0.45, ("usb3_ctrl", "u1_u2_lpm"): 0.3,
               ("ddr_ctrl", "phy_calib"): 0.35, ("cpu_cluster", "multi_core_sync"): 0.25},
     "bugs": [
@@ -148,6 +163,9 @@ LYRA = {
                     features=["Sequencing", "Wakeup"],
                     sigs=["[PMU_SEQ] domain <N> isolation released before power good"]),
     },
+    "subsystems": {"cpu_ss": ["cpu_cluster", "pmu"], "multimedia_ss": ["gpu_core", "isp_pipeline", "mipi_csi"],
+                   "memory_ss": ["lpddr5_ctrl"]},
+    "late_tests": {("gpu_core", "mmu_fault"): 9, ("isp_pipeline", "hdr_merge"): 4},
     "sticky": {},
     "flaky": {("gpu_core", "compute_dispatch"): 0.15},
     "bugs": [
@@ -164,6 +182,7 @@ LYRA = {
         "project": "Lyra SoC",
         "current_milestone": "DV 1.0",
         "settings": {"intermittent_window": 10, "bug_trend_weeks": 12},
+        "subsystems": None,
         "milestones": [
             {"name": "DV 0.8", "date": "2026-10-30",
              "criteria": {"min_pass_rate": 0.90, "coverage_target_scale": 0.9,
@@ -192,6 +211,7 @@ NOVA = {
                          start=0.05, floor=0.0, timeout_share=0.0, lag=0, small=True,
                          features=["Pin mux", "Interrupts"], sigs=["[MUX_CHK] ow mismatch s=<N> i=<HEX> exp=<N> act=<N>"]),
     },
+    "subsystems": {"serial_ss": ["i2c_ctrl", "spi_ctrl", "uart"], "pin_ss": ["gpio_mux"]},
     "sticky": {},
     "flaky": {},
     "bugs": [("NV-11", "spi_ctrl", "S3", "closed", 15, 6, "Quad IO turnaround cycle count off by one"),
@@ -201,6 +221,7 @@ NOVA = {
         "project": "Nova IO Hub",
         "current_milestone": "DV 1.0",
         "files": {"regression": "nightly_results.csv"},
+        "subsystems": None,
         "milestones": [
             {"name": "DV 1.0", "date": "2026-11-27",
              "criteria": {"min_pass_rate": 0.97, "coverage_target_scale": 0.97,
@@ -214,6 +235,7 @@ NOVA = {
 
 def regression_rows(spec, rng):
     rows, n = [], spec["runs"]
+    ss_of = {b: ss for ss, blocks in spec.get("subsystems", {}).items() for b in blocks}
     for r in range(n):
         date = AS_OF - dt.timedelta(days=n - 1 - r)
         run_id = f"nightly_{date:%m%d}"
@@ -221,21 +243,27 @@ def regression_rows(spec, rng):
         for block, b in spec["blocks"].items():
             p_block = b["floor"] + (b["start"] - b["floor"]) * (1 - progress) ** 1.6
             for test in b["tests"]:
-                for _ in range(spec["seeds_per_test"]):
-                    seed = rng.randrange(1, 2**31)
+                if r < spec.get("late_tests", {}).get((block, test), 0):
+                    continue
+                for inst in spec.get("instances", {}).get(block, [block]):
                     sticky = spec["sticky"].get((block, test))
-                    failed = sticky is not None or rng.random() < spec["flaky"].get((block, test), p_block)
-                    if not failed:
-                        rows.append([run_id, date, block, test, seed, "PASS", round(rng.uniform(40, 900), 1), ""])
-                        continue
-                    if rng.random() < 0.03:
-                        status, sig = "ERROR", CRASH_SIG
-                    else:
-                        sig = b["sigs"][sticky] if sticky is not None else rng.choice(b["sigs"])
-                        timeout = "PH_TIMEOUT" in sig or rng.random() < b["timeout_share"] * 0.3
-                        status, sig = ("TIMEOUT", TIMEOUT_SIG) if timeout else ("FAIL", sig)
-                    rows.append([run_id, date, block, test, seed, status,
-                                 3600.0 if status == "TIMEOUT" else round(rng.uniform(30, 600), 1), sig])
+                    if sticky and sticky[1] not in (None, inst):
+                        sticky = None
+                    p = min(0.95, spec["flaky"].get((block, test), p_block) * spec.get("instance_weight", {}).get(inst, 1))
+                    for _ in range(spec["seeds_per_test"]):
+                        seed = rng.randrange(1, 2**31)
+                        hier = [ss_of[block], inst] if spec.get("hierarchy_in_csv") else []
+                        if not (sticky or rng.random() < p):
+                            rows.append([run_id, date, block, test, seed, "PASS", round(rng.uniform(40, 900), 1), "", *hier])
+                            continue
+                        if rng.random() < 0.03:
+                            status, sig = "ERROR", CRASH_SIG
+                        else:
+                            sig = b["sigs"][sticky[0]] if sticky else rng.choice(b["sigs"])
+                            timeout = "PH_TIMEOUT" in sig or rng.random() < b["timeout_share"] * 0.3
+                            status, sig = ("TIMEOUT", TIMEOUT_SIG) if timeout else ("FAIL", sig)
+                        rows.append([run_id, date, block, test, seed, status,
+                                     3600.0 if status == "TIMEOUT" else round(rng.uniform(30, 600), 1), sig, *hier])
     return rows
 
 
@@ -296,13 +324,18 @@ def write_project(spec):
     out.mkdir(parents=True, exist_ok=True)
     files = {"regression": "regression_runs.csv", "coverage": "coverage.csv", "bugs": "bugs.csv",
              "testplan": "testplan.csv", **spec["config"].get("files", {})}
-    write_csv(out / files["regression"], ["run_id", "date", "block", "test", "seed", "status", "duration_s", "signature"],
-              regression_rows(spec, rng))
+    header = ["run_id", "date", "block", "test", "seed", "status", "duration_s", "signature"]
+    if spec.get("hierarchy_in_csv"):
+        header += ["subsystem", "instance"]
+    write_csv(out / files["regression"], header, regression_rows(spec, rng))
     write_csv(out / files["coverage"], ["block", "metric", "covered", "total", "target_pct"], coverage_rows(spec, rng))
     write_csv(out / files["bugs"], ["id", "title", "block", "severity", "status", "opened", "closed"], bug_rows(spec, rng))
     write_csv(out / files["testplan"], ["id", "block", "feature", "item", "milestone", "status", "test"],
               testplan_rows(spec, rng))
-    (out / "config.json").write_text(json.dumps(spec["config"], indent=2) + "\n")
+    config = dict(spec["config"])
+    if "subsystems" in config:  # projects without hierarchy columns group blocks here instead
+        config["subsystems"] = spec["subsystems"]
+    (out / "config.json").write_text(json.dumps(config, indent=2) + "\n")
     print(f"Wrote {out}")
 
 

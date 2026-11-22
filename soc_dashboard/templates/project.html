@@ -19,7 +19,7 @@
   <div class="kpis" id="kpis"></div>
 
   <section class="band" id="regression">
-    <div class="band-head"><h2>Regression</h2><p id="reg-note"></p></div>
+    <div class="band-head"><h2>Regression</h2><p id="reg-note"></p><a id="reg-link" class="go" hidden>Subsystem, module and instance detail</a></div>
     <div class="grid">
       <div class="panel span-7">
         <div class="panel-head"><h3>Pass rate by nightly run</h3><span class="legend" id="trend-legend"></span></div>
@@ -110,6 +110,7 @@
     parent.appendChild(e); return e;
   }
   function S() { return D.scopes[scope]; }
+  function regNode(block) { return (D.block_nodes && D.block_nodes[block]) || ""; }
   function rateClass(r, need) { return r == null ? "" : r >= need ? "ok" : r >= need - 0.05 ? "warn" : "bad"; }
   function currentMilestone() { var s = S().signoff; for (var i = 0; i < s.length; i++) if (s[i].name === D.current_milestone) return s[i]; return s[s.length - 1]; }
   function needRate() {
@@ -393,6 +394,7 @@
     renderCoverage(); renderBugs(); renderTestplan(); renderSignoff();
     $("footer").textContent = "Generated " + D.generated + " by socdash.py from " + D.sources.join(", ") + ".";
     $("intermittent-title").textContent = "Intermittent tests, last " + D.window + " runs";
+    if (D.regression_href) { $("reg-link").href = D.regression_href + (scope === "all" ? "" : "#" + regNode(scope)); $("reg-link").hidden = false; }
     if (D.home) { $("home").href = D.home; $("home").hidden = false; $("home-sep").hidden = false; }
   }
 

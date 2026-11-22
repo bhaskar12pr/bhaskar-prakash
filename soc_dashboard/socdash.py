@@ -30,7 +30,9 @@ TEMPLATES = HERE / "templates"
 DEFAULT_FILES = {"regression": "regression_runs.csv", "coverage": "coverage.csv",
                  "bugs": "bugs.csv", "testplan": "testplan.csv"}
 # Tunable settings a project may override under "settings" in config.json.
-DEFAULT_SETTINGS = {"intermittent_window": 7, "bug_trend_weeks": 10, "stale_after_days": 3}
+DEFAULT_SETTINGS = {"intermittent_window": 7, "bug_trend_weeks": 10, "stale_after_days": 3,
+                    "test_history_runs": 10}
+UNGROUPED = "(no subsystem)"
 
 STATUSES = ("PASS", "FAIL", "TIMEOUT", "ERROR")
 SEVERITIES = ("S1", "S2", "S3", "S4")
@@ -107,6 +109,9 @@ def load(data_dir: Path) -> dict:
             "status": _choice(r, "status", STATUSES, upper=True),
             "duration_s": _num(r["duration_s"], r["_where"]) if r["duration_s"] else None,
             "signature": r["signature"],
+            # Optional hierarchy: subsystem > block (module) > instance.
+            "subsystem": r.get("subsystem", ""),
+            "instance": r.get("instance", ""),
         })
     if not runs:
         raise InputError("regression_runs.csv: no rows")
@@ -175,6 +180,16 @@ def load_config(path: Path) -> dict:
         raise InputError(f"{path}: every milestone needs a unique \"name\"")
     if config.get("current_milestone") and config["current_milestone"] not in names:
         raise InputError(f"{path}: current_milestone '{config['current_milestone']}' is not in milestones")
+    subsystems = config.get("subsystems", {})
+    if not isinstance(subsystems, dict) or not all(isinstance(v, list) for v in subsystems.values()):
+        raise InputError(f"{path}: \"subsystems\" must map a subsystem name to a list of blocks")
+    owner = {}
+    for ss, blocks in subsystems.items():
+        for b in blocks:
+            if b in owner:
+                raise InputError(f"{path}: block '{b}' is listed under both '{owner[b]}' and '{ss}'")
+            owner[b] = ss
+    config["block_subsystem"] = owner
     config["project"] = config.get("project") or path.parent.name
     config["files"] = {**DEFAULT_FILES, **config.get("files", {})}
     config["settings"] = {**DEFAULT_SETTINGS, **config.get("settings", {})}
@@ -415,6 +430,141 @@ def summarize(data: dict, block: str | None) -> dict:
     }
 
 
+STATUS_CHAR = {"PASS": "P", "FAIL": "F", "TIMEOUT": "T", "ERROR": "E"}
+
+
+def node_slug(path: tuple) -> str:
+    """Hash-safe id for a hierarchy node: letters, digits and hyphens only."""
+    return "--".join(re.sub(r"[^A-Za-z0-9]+", "-", p).strip("-") or "x" for p in path) or "all"
+
+
+def hierarchy_path(row: dict, block_subsystem: dict) -> tuple[str, str, str]:
+    """(subsystem, module, instance) for a regression row.
+
+    The CSV's subsystem column wins, then config.json "subsystems", then a catch-all group.
+    A row without an instance is treated as the module's only instance.
+    """
+    ss = row.get("subsystem") or block_subsystem.get(row["block"], UNGROUPED)
+    return ss, row["block"], row.get("instance") or row["block"]
+
+
+def regression_tree(data: dict) -> dict:
+    """Roll regression results up a subsystem > module > instance > test hierarchy.
+
+    A test's result in a run is PASS only if every seed passed; otherwise it takes the
+    status of its first non-passing seed. Progress at every level is counted in tests.
+    """
+    cfg = data["config"]
+    order = run_order(data["runs"])
+    run_ids = [r for r, _ in order]
+    idx = {r: i for i, r in enumerate(run_ids)}
+    n, latest, prev = len(run_ids), len(run_ids) - 1, len(run_ids) - 2
+    history = cfg["settings"]["test_history_runs"]
+
+    tests = {}  # (ss, module, instance, test) -> per-run results
+    for r in data["runs"]:
+        key = (*hierarchy_path(r, cfg["block_subsystem"]), r["test"])
+        t = tests.setdefault(key, {"status": {}, "seeds": defaultdict(lambda: [0, 0]), "sig": {}})
+        i = idx[r["run_id"]]
+        if t["status"].get(i, "PASS") == "PASS":
+            t["status"][i] = r["status"]
+        seeds = t["seeds"][i]
+        seeds[0] += r["status"] == "PASS"
+        seeds[1] += 1
+        if r["status"] != "PASS" and i not in t["sig"]:
+            t["sig"][i] = r["signature"] or "(no signature)"
+
+    def new_node(path):
+        return {"id": node_slug(path), "name": path[-1] if path else cfg["project"],
+                "level": ("project", "subsystem", "module", "instance")[len(path)],
+                "path": list(path), "children": [],
+                "sims": [Counter() for _ in range(n)], "tp": [0] * n, "tf": [0] * n,
+                "tests": 0, "not_run": 0, "new_fail": 0, "fixed": 0, "always_fail": 0}
+
+    nodes = {(): new_node(())}
+    test_rows = []
+    for key in sorted(tests):
+        ss, mod, inst, name = key
+        t = tests[key]
+        paths = [(), (ss,), (ss, mod), (ss, mod, inst)]
+        for depth in range(1, 4):
+            if paths[depth] not in nodes:
+                nodes[paths[depth]] = new_node(paths[depth])
+                nodes[paths[depth - 1]]["children"].append(paths[depth])
+        st = t["status"]
+        cur, before = st.get(latest), st.get(prev)
+        # When did the current outcome start? Walk back while the test kept that outcome.
+        since = None
+        if cur is not None:
+            i = latest
+            while i - 1 >= 0 and st.get(i - 1) is not None and (st[i - 1] == "PASS") == (cur == "PASS"):
+                i -= 1
+            since = run_ids[i]
+        ran = [s for s in st.values()]
+        for path in paths:
+            node = nodes[path]
+            node["tests"] += 1
+            for i, s in st.items():
+                node["tp" if s == "PASS" else "tf"][i] += 1
+            if cur is None:
+                node["not_run"] += 1
+            elif cur != "PASS" and before == "PASS":
+                node["new_fail"] += 1
+            elif cur == "PASS" and before is not None and before != "PASS":
+                node["fixed"] += 1
+            if ran and all(s != "PASS" for s in ran):
+                node["always_fail"] += 1
+        flips = sum(1 for i in range(max(0, n - history) + 1, n)
+                    if st.get(i) and st.get(i - 1) and (st[i] == "PASS") != (st[i - 1] == "PASS"))
+        seeds = t["seeds"].get(latest)
+        test_rows.append({
+            "n": node_slug(paths[3]), "ss": ss, "mod": mod, "inst": inst, "test": name,
+            "h": "".join(STATUS_CHAR.get(st.get(i), "-") for i in range(max(0, n - history), n)),
+            "status": cur or "NOT RUN",
+            "seeds": f"{seeds[0]}/{seeds[1]}" if seeds else "",
+            "since": since,
+            "new": cur is not None and cur != "PASS" and before == "PASS",
+            "fixed": cur == "PASS" and before is not None and before != "PASS",
+            "flips": flips,
+            "sig": t["sig"].get(latest, ""),
+        })
+
+    for r in data["runs"]:
+        path = hierarchy_path(r, cfg["block_subsystem"])
+        i = idx[r["run_id"]]
+        for depth in range(4):
+            nodes[path[:depth]]["sims"][i][r["status"]] += 1
+
+    out = []
+    for path, node in nodes.items():
+        sims = node.pop("sims")
+        node["total"] = [sum(c.values()) for c in sims]
+        node["pass"] = [c["PASS"] for c in sims]
+        last = sims[latest]
+        node["latest"] = {"fail": last["FAIL"], "timeout": last["TIMEOUT"], "error": last["ERROR"]}
+        node["children"] = [node_slug(c) for c in sorted(node["children"])]
+        out.append(node)
+    out.sort(key=lambda nd: nd["path"])
+    return {"runs": [{"run": r, "date": d.isoformat()} for r, d in order],
+            "nodes": out, "tests": test_rows, "history": min(history, n)}
+
+
+def build_regression_payload(data: dict, links: dict) -> dict:
+    cfg = data["config"]
+    current = next((m for m in cfg.get("milestones", []) if m["name"] == cfg.get("current_milestone")), None)
+    order = run_order(data["runs"])
+    return {
+        "project": cfg["project"],
+        "latest_run": order[-1][0],
+        "as_of": (dt.date.fromisoformat(cfg["as_of"]) if cfg.get("as_of") else order[-1][1]).isoformat(),
+        "milestone": current["name"] if current else None,
+        "need": (current or {}).get("criteria", {}).get("min_pass_rate"),
+        "links": links,
+        "generated": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+        **regression_tree(data),
+    }
+
+
 def build_payload(data: dict, home: str | None = None) -> dict:
     order = run_order(data["runs"])
     data["as_of"] = dt.date.fromisoformat(data["config"]["as_of"]) if data["config"].get("as_of") else order[-1][1]
@@ -437,6 +587,9 @@ def build_payload(data: dict, home: str | None = None) -> dict:
         "stale_after_days": cfg["settings"]["stale_after_days"],
         "sources": [*cfg["files"].values(), "config.json"],
         "home": home,
+        "regression_href": None,
+        # block -> its module node on the regression page, so block links land in the right place
+        "block_nodes": {r["block"]: node_slug(hierarchy_path(r, cfg["block_subsystem"])[:2]) for r in data["runs"]},
     }
 
 
@@ -468,6 +621,10 @@ def project_card(payload: dict, href: str) -> dict:
 
 def render(payload: dict, fragment: bool = False) -> str:
     return _render("project.html", f"{payload['project']} Verification", payload, fragment)
+
+
+def render_regression(payload: dict, fragment: bool = False) -> str:
+    return _render("regression.html", f"{payload['project']} Regression", payload, fragment)
 
 
 def render_overview(overview: dict, fragment: bool = False) -> str:
@@ -537,22 +694,50 @@ def parse_log(text: str) -> dict:
     }
 
 
-def collect(logs: Path, run_id: str, date: str, out: Path, block: str | None, pattern: str) -> int:
+LAYOUT_LEVELS = ("subsystem", "block", "instance")
+
+
+def collect(logs: Path, run_id: str, date: str, out: Path, block: str | None, pattern: str,
+            layout: str = "block") -> int:
+    """Append one row per log file to a regression CSV.
+
+    `layout` names the folders between `logs` and each log file, e.g. "subsystem/block/instance"
+    for logs/<subsystem>/<block>/<instance>/<test>.log. Levels may be any of subsystem,
+    block and instance, and block is required.
+    """
     _date(date, "--date")
+    levels = [x for x in layout.split("/") if x]
+    if "block" not in levels or any(x not in LAYOUT_LEVELS for x in levels) or len(set(levels)) != len(levels):
+        raise InputError(f"--layout '{layout}': use folder levels from {', '.join(LAYOUT_LEVELS)}, including block")
     files = sorted(Path(logs).rglob(pattern))
     if not files:
         raise InputError(f"{logs}: no files match '{pattern}'")
-    new = not out.exists() or out.stat().st_size == 0
+    wanted = list(REGRESSION_COLS) + [x for x in ("subsystem", "instance") if x in levels]
+    if out.exists() and out.stat().st_size:
+        with out.open(newline="") as f:
+            header = next(csv.reader(f), [])
+        missing = [c for c in wanted if c not in header]
+        if missing:
+            raise InputError(f"{out}: existing header lacks column(s) {', '.join(missing)} needed by --layout; "
+                             f"add them to the header or write to a new file")
+        new = False
+    else:
+        header, new = wanted, True
     with out.open("a", newline="") as f:
-        w = csv.writer(f)
+        w = csv.DictWriter(f, fieldnames=header, extrasaction="ignore", restval="")
         if new:
-            w.writerow(REGRESSION_COLS)
+            w.writeheader()
         for path in files:
             res = parse_log(path.read_text(errors="replace"))
-            rel = path.relative_to(logs)
-            blk = block or (rel.parts[0] if len(rel.parts) > 1 else "top")
-            w.writerow([run_id, date, blk, res["test"] or path.stem, res["seed"], res["status"],
-                        res["duration_s"], res["signature"]])
+            folders = path.relative_to(logs).parts[:-1]
+            if len(folders) < len(levels) and not block:
+                raise InputError(f"{path}: expected {len(levels)} folder level(s) ({'/'.join(levels)}) above the log")
+            row = dict(zip(levels, folders))
+            if block:
+                row["block"] = block
+            w.writerow({**row, "run_id": run_id, "date": date, "test": res["test"] or path.stem,
+                        "seed": res["seed"], "status": res["status"], "duration_s": res["duration_s"],
+                        "signature": res["signature"]})
     return len(files)
 
 
@@ -584,18 +769,26 @@ def main(argv=None) -> int:
     c.add_argument("--date", required=True, help="YYYY-MM-DD")
     c.add_argument("--out", type=Path, required=True)
     c.add_argument("--block", help="use this block name for every log instead of the subfolder")
+    c.add_argument("--layout", default="block",
+                   help="folder levels above each log, e.g. subsystem/block/instance (default: block)")
     c.add_argument("--pattern", default="*.log")
 
     args = p.parse_args(argv)
     try:
         if args.cmd == "collect":
-            n = collect(args.logs, args.run_id, args.date, args.out, args.block, args.pattern)
+            n = collect(args.logs, args.run_id, args.date, args.out, args.block, args.pattern, args.layout)
             print(f"Appended {n} result(s) to {args.out}")
             return 0
         if args.cmd == "build-all":
             return build_all(args.projects, args.out, args.title, args.fail_on_signoff)
-        payload = build_payload(load(args.data))
+        data = load(args.data)
+        payload = build_payload(data)
+        reg_out = args.out.with_name(f"{args.out.stem}-regression{args.out.suffix or '.html'}")
+        payload["regression_href"] = reg_out.name
         args.out.write_text(render(payload, args.fragment))
+        reg_out.write_text(render_regression(build_regression_payload(data, {"project": args.out.name}),
+                                             args.fragment))
+        print(f"Wrote {reg_out}")
     except InputError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
@@ -635,16 +828,21 @@ def build_all(projects_root: Path, out: Path, title: str, fail_on_signoff: bool 
         while slug in used:
             slug += "-x"
         used.add(slug)
-        href = f"{slug}.html"
+        href, reg_href = f"{slug}.html", f"{slug}-regression.html"
         try:
-            payload = build_payload(load(folder), home="index.html")
+            data = load(folder)
+            payload = build_payload(data, home="index.html")
+            reg = build_regression_payload(data, {"home": "index.html", "project": href})
         except InputError as e:
             errors += 1
             print(f"error: {folder.name}: {e}", file=sys.stderr)
             cards.append({"name": folder.name, "href": None, "error": str(e)})
             continue
+        payload["regression_href"] = reg_href
         (out / href).write_text(render(payload))
+        (out / reg_href).write_text(render_regression(reg))
         card = project_card(payload, href)
+        card["regression_href"] = reg_href
         cards.append(card)
         unmet += not card["met"]
         print_summary(payload)
