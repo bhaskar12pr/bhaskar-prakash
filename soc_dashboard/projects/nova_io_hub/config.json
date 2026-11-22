@@ -1,0 +1,22 @@
+{
+  "project": "Nova IO Hub",
+  "current_milestone": "DV 1.0",
+  "files": {
+    "regression": "nightly_results.csv"
+  },
+  "milestones": [
+    {
+      "name": "DV 1.0",
+      "date": "2026-11-27",
+      "criteria": {
+        "min_pass_rate": 0.97,
+        "coverage_target_scale": 0.97,
+        "max_unresolved_bugs": {
+          "S1": 0,
+          "S2": 0
+        },
+        "min_testplan_passing": 0.95
+      }
+    }
+  ]
+}

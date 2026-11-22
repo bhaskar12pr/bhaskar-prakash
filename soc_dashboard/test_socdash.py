@@ -9,6 +9,7 @@ from pathlib import Path
 import socdash
 
 HERE = Path(__file__).resolve().parent
+ORION = HERE / "projects" / "orion_soc"
 
 PASS_LOG = """\
 UVM_INFO @ 0: reporter [RNTST] Running test mux4to1_exhaustive...
@@ -83,7 +84,7 @@ class CollectTest(unittest.TestCase):
 
 class AnalysisTest(unittest.TestCase):
     def setUp(self):
-        self.data = socdash.load(HERE / "sample_data")
+        self.data = socdash.load(ORION)
 
     def test_intermittent_needs_both_outcomes(self):
         order = [("r1", None), ("r2", None), ("r3", None)]
@@ -130,18 +131,18 @@ class BuildTest(unittest.TestCase):
     def test_build_writes_html_and_signoff_exit_code(self):
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp, "d.html")
-            self.assertEqual(socdash.main(["build", "--data", str(HERE / "sample_data"), "--out", str(out)]), 0)
+            self.assertEqual(socdash.main(["build", "--data", str(ORION), "--out", str(out)]), 0)
             html = out.read_text()
             self.assertTrue(html.startswith("<!doctype html>"))
             self.assertNotIn("__SOCDASH_DATA__", html)
             # The sample project has not met DV 0.8, so CI gating must fail.
-            self.assertEqual(socdash.main(["build", "--data", str(HERE / "sample_data"), "--out", str(out),
+            self.assertEqual(socdash.main(["build", "--data", str(ORION), "--out", str(out),
                                            "--fail-on-signoff"]), 2)
 
     def test_bad_input_reports_file_and_line(self):
         with tempfile.TemporaryDirectory() as tmp:
             data = Path(tmp, "data")
-            shutil.copytree(HERE / "sample_data", data)
+            shutil.copytree(ORION, data)
             p = data / "bugs.csv"
             lines = p.read_text().splitlines()
             lines[1] = lines[1].replace(",S", ",S9", 1)
@@ -151,10 +152,83 @@ class BuildTest(unittest.TestCase):
             self.assertIn("bugs.csv:2", str(ctx.exception))
 
     def test_script_tag_cannot_be_closed_by_data(self):
-        payload = socdash.build_payload(socdash.load(HERE / "sample_data"))
+        payload = socdash.build_payload(socdash.load(ORION))
         payload["project"] = "x</script><b>"
         html = socdash.render(payload)
         self.assertEqual(html.count("</script>"), 2)
+
+
+class MultiProjectTest(unittest.TestCase):
+    def make_projects(self, tmp):
+        root = Path(tmp, "projects")
+        root.mkdir()
+        for name in ("orion_soc", "lyra_soc", "nova_io_hub"):
+            shutil.copytree(HERE / "projects" / name, root / name)
+        (root / "not_a_project").mkdir()  # no config.json: ignored
+        return root
+
+    def test_discover_only_folders_with_config(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self.make_projects(tmp)
+            self.assertEqual([p.name for p in socdash.discover_projects(root)],
+                             ["lyra_soc", "nova_io_hub", "orion_soc"])
+
+    def test_build_all_writes_overview_and_one_page_per_project(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, out = self.make_projects(tmp), Path(tmp, "site")
+            self.assertEqual(socdash.build_all(root, out, "Portfolio"), 0)
+            self.assertEqual(sorted(p.name for p in out.iterdir()),
+                             ["index.html", "lyra-soc.html", "nova-io-hub.html", "orion-soc.html"])
+            self.assertIn('"home":"index.html"', (out / "orion-soc.html").read_text())
+            index = (out / "index.html").read_text()
+            for name in ("Orion SoC", "Lyra SoC", "Nova IO Hub", "orion-soc.html"):
+                self.assertIn(name, index)
+            # Orion and Lyra have not met their current milestone.
+            self.assertEqual(socdash.build_all(root, out, "Portfolio", fail_on_signoff=True), 2)
+
+    def test_broken_project_is_reported_but_others_still_build(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, out = self.make_projects(tmp), Path(tmp, "site")
+            (root / "lyra_soc" / "coverage.csv").unlink()
+            self.assertEqual(socdash.build_all(root, out, "Portfolio"), 1)
+            self.assertTrue((out / "orion-soc.html").exists())
+            self.assertFalse((out / "lyra-soc.html").exists())
+            self.assertIn("coverage.csv: file not found", (out / "index.html").read_text())
+
+    def test_config_files_override_renames_inputs(self):
+        data = socdash.load(HERE / "projects" / "nova_io_hub")  # uses nightly_results.csv
+        self.assertTrue(data["runs"])
+        self.assertEqual(data["config"]["files"]["regression"], "nightly_results.csv")
+
+    def test_config_settings_reach_the_page(self):
+        payload = socdash.build_payload(socdash.load(HERE / "projects" / "lyra_soc"))
+        self.assertEqual(payload["window"], 10)
+        self.assertEqual(len(payload["scopes"]["all"]["bugs"]["trend"]), 12)
+
+    def test_config_errors(self):
+        cases = [
+            ({"files": {"regresion": "x.csv"}}, "unknown key(s) in \"files\": regresion"),
+            ({"settings": {"window": 5}}, "unknown key(s) in \"settings\": window"),
+            ({"current_milestone": "DV 2", "milestones": [{"name": "DV 1"}]}, "current_milestone 'DV 2'"),
+            ({"milestones": [{"name": "A"}, {"name": "A"}]}, "unique"),
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, "config.json")
+            for config, message in cases:
+                path.write_text(json.dumps(config))
+                with self.assertRaises(socdash.InputError) as ctx:
+                    socdash.load_config(path)
+                self.assertIn(message, str(ctx.exception))
+            path.write_text("{")
+            with self.assertRaises(socdash.InputError):
+                socdash.load_config(path)
+
+    def test_project_name_defaults_to_folder(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, "my_chip", "config.json")
+            path.parent.mkdir()
+            path.write_text("{}")
+            self.assertEqual(socdash.load_config(path)["project"], "my_chip")
 
 
 if __name__ == "__main__":

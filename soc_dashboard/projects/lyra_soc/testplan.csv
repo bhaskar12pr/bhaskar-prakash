@@ -1,0 +1,82 @@
+id,block,feature,item,milestone,status,test
+TP-001,cpu_cluster,Boot and reset,Boot and reset scenario 1,DV 0.8,passing,cache_coherency
+TP-002,cpu_cluster,Boot and reset,Boot and reset scenario 2,DV 0.8,passing,irq_routing
+TP-003,cpu_cluster,Boot and reset,Boot and reset scenario 3,DV 0.8,passing,secure_world_entry
+TP-004,cpu_cluster,Boot and reset,Boot and reset scenario 4,DV 1.0,passing,cache_coherency
+TP-005,cpu_cluster,Boot and reset,Boot and reset scenario 5,DV 1.0,passing,dvfs_switch
+TP-006,cpu_cluster,Boot and reset,Boot and reset scenario 6,DV 1.0,passing,dvfs_switch
+TP-007,cpu_cluster,Coherency,Coherency scenario 1,DV 0.8,passing,secure_world_entry
+TP-008,cpu_cluster,Coherency,Coherency scenario 2,DV 0.8,passing,dvfs_switch
+TP-009,cpu_cluster,Coherency,Coherency scenario 3,DV 0.8,passing,cache_coherency
+TP-010,cpu_cluster,Power states,Power states scenario 1,DV 0.8,passing,secure_world_entry
+TP-011,cpu_cluster,Power states,Power states scenario 2,DV 0.8,passing,irq_routing
+TP-012,cpu_cluster,Power states,Power states scenario 3,DV 0.8,passing,dvfs_switch
+TP-013,cpu_cluster,Power states,Power states scenario 4,DV 1.0,passing,secure_world_entry
+TP-014,cpu_cluster,Power states,Power states scenario 5,DV 1.0,passing,smoke_boot
+TP-015,cpu_cluster,Power states,Power states scenario 6,DV 1.0,passing,smoke_boot
+TP-016,gpu_core,Shader,Shader scenario 1,DV 0.8,passing,texture_fetch
+TP-017,gpu_core,Shader,Shader scenario 2,DV 0.8,passing,texture_fetch
+TP-018,gpu_core,Shader,Shader scenario 3,DV 0.8,passing,mmu_fault
+TP-019,gpu_core,Shader,Shader scenario 4,DV 1.0,passing,raster_tiles
+TP-020,gpu_core,Texture,Texture scenario 1,DV 0.8,passing,shader_alu
+TP-021,gpu_core,Texture,Texture scenario 2,DV 0.8,passing,compute_dispatch
+TP-022,gpu_core,Texture,Texture scenario 3,DV 0.8,passing,raster_tiles
+TP-023,gpu_core,Texture,Texture scenario 4,DV 1.0,passing,shader_alu
+TP-024,gpu_core,Rasterizer,Rasterizer scenario 1,DV 0.8,passing,raster_tiles
+TP-025,gpu_core,Rasterizer,Rasterizer scenario 2,DV 0.8,passing,raster_tiles
+TP-026,gpu_core,Rasterizer,Rasterizer scenario 3,DV 0.8,passing,mmu_fault
+TP-027,gpu_core,Rasterizer,Rasterizer scenario 4,DV 1.0,passing,shader_alu
+TP-028,gpu_core,Memory,Memory scenario 1,DV 0.8,passing,mmu_fault
+TP-029,gpu_core,Memory,Memory scenario 2,DV 0.8,passing,shader_alu
+TP-030,gpu_core,Memory,Memory scenario 3,DV 0.8,passing,shader_alu
+TP-031,gpu_core,Memory,Memory scenario 4,DV 1.0,written,raster_tiles
+TP-032,isp_pipeline,Front end,Front end scenario 1,DV 0.8,passing,lens_shading
+TP-033,isp_pipeline,Front end,Front end scenario 2,DV 0.8,passing,scaler_bypass
+TP-034,isp_pipeline,Front end,Front end scenario 3,DV 0.8,passing,auto_white_balance
+TP-035,isp_pipeline,Front end,Front end scenario 4,DV 1.0,passing,hdr_merge
+TP-036,isp_pipeline,Front end,Front end scenario 5,DV 1.0,passing,scaler_bypass
+TP-037,isp_pipeline,Color,Color scenario 1,DV 0.8,passing,scaler_bypass
+TP-038,isp_pipeline,Color,Color scenario 2,DV 0.8,passing,scaler_bypass
+TP-039,isp_pipeline,Color,Color scenario 3,DV 0.8,passing,scaler_bypass
+TP-040,isp_pipeline,Color,Color scenario 4,DV 1.0,passing,hdr_merge
+TP-041,isp_pipeline,Color,Color scenario 5,DV 1.0,passing,hdr_merge
+TP-042,isp_pipeline,HDR,HDR scenario 1,DV 0.8,passing,lens_shading
+TP-043,isp_pipeline,HDR,HDR scenario 2,DV 0.8,passing,auto_white_balance
+TP-044,isp_pipeline,HDR,HDR scenario 3,DV 0.8,passing,bayer_demosaic
+TP-045,isp_pipeline,HDR,HDR scenario 4,DV 1.0,passing,scaler_bypass
+TP-046,isp_pipeline,Output,Output scenario 1,DV 0.8,passing,auto_white_balance
+TP-047,isp_pipeline,Output,Output scenario 2,DV 0.8,passing,auto_white_balance
+TP-048,isp_pipeline,Output,Output scenario 3,DV 0.8,passing,auto_white_balance
+TP-049,isp_pipeline,Output,Output scenario 4,DV 1.0,passing,auto_white_balance
+TP-050,isp_pipeline,Output,Output scenario 5,DV 1.0,passing,lens_shading
+TP-051,isp_pipeline,Output,Output scenario 6,DV 1.0,passing,bayer_demosaic
+TP-052,lpddr5_ctrl,Training,Training scenario 1,DV 0.8,passing,init_training
+TP-053,lpddr5_ctrl,Training,Training scenario 2,DV 0.8,passing,link_ecc
+TP-054,lpddr5_ctrl,Training,Training scenario 3,DV 0.8,passing,wck_sync
+TP-055,lpddr5_ctrl,Training,Training scenario 4,DV 1.0,passing,link_ecc
+TP-056,lpddr5_ctrl,Refresh,Refresh scenario 1,DV 0.8,passing,wck_sync
+TP-057,lpddr5_ctrl,Refresh,Refresh scenario 2,DV 0.8,passing,link_ecc
+TP-058,lpddr5_ctrl,Refresh,Refresh scenario 3,DV 0.8,passing,dvfsc_switch
+TP-059,lpddr5_ctrl,Refresh,Refresh scenario 4,DV 1.0,passing,dvfsc_switch
+TP-060,lpddr5_ctrl,Refresh,Refresh scenario 5,DV 1.0,passing,init_training
+TP-061,lpddr5_ctrl,Refresh,Refresh scenario 6,DV 1.0,written,dvfsc_switch
+TP-062,lpddr5_ctrl,Link ECC,Link ECC scenario 1,DV 0.8,passing,init_training
+TP-063,lpddr5_ctrl,Link ECC,Link ECC scenario 2,DV 0.8,passing,wck_sync
+TP-064,lpddr5_ctrl,Link ECC,Link ECC scenario 3,DV 0.8,passing,link_ecc
+TP-065,mipi_csi,PHY,PHY scenario 1,DV 0.8,passing,crc_error_inject
+TP-066,mipi_csi,PHY,PHY scenario 2,DV 0.8,passing,virtual_channels
+TP-067,mipi_csi,PHY,PHY scenario 3,DV 0.8,passing,lane_deskew
+TP-068,mipi_csi,Protocol,Protocol scenario 1,DV 0.8,passing,virtual_channels
+TP-069,mipi_csi,Protocol,Protocol scenario 2,DV 0.8,passing,crc_error_inject
+TP-070,mipi_csi,Protocol,Protocol scenario 3,DV 0.8,passing,virtual_channels
+TP-071,mipi_csi,Protocol,Protocol scenario 4,DV 1.0,passing,virtual_channels
+TP-072,pmu,Sequencing,Sequencing scenario 1,DV 0.8,passing,brownout
+TP-073,pmu,Sequencing,Sequencing scenario 2,DV 0.8,passing,power_domain_seq
+TP-074,pmu,Sequencing,Sequencing scenario 3,DV 0.8,passing,retention_save_restore
+TP-075,pmu,Sequencing,Sequencing scenario 4,DV 1.0,passing,brownout
+TP-076,pmu,Sequencing,Sequencing scenario 5,DV 1.0,passing,power_domain_seq
+TP-077,pmu,Sequencing,Sequencing scenario 6,DV 1.0,passing,retention_save_restore
+TP-078,pmu,Wakeup,Wakeup scenario 1,DV 0.8,passing,power_domain_seq
+TP-079,pmu,Wakeup,Wakeup scenario 2,DV 0.8,passing,brownout
+TP-080,pmu,Wakeup,Wakeup scenario 3,DV 0.8,passing,wakeup_sources
+TP-081,pmu,Wakeup,Wakeup scenario 4,DV 1.0,passing,retention_save_restore

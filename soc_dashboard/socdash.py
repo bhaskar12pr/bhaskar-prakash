@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """SoC verification dashboard.
 
-Builds a single self-contained HTML dashboard from four CSV files and a JSON
-config, and collects regression results from UVM simulation logs.
+Each project lives in its own folder with a config.json and four CSV files.
+`build` makes one project's dashboard; `build-all` makes a dashboard for every
+project folder plus an overview page; `collect` turns UVM logs into CSV rows.
 
-    python3 socdash.py build   --data sample_data --out dashboard.html
-    python3 socdash.py collect --logs sim/logs --run-id nightly_42 --date 2026-11-21 \
-                               --out sample_data/regression_runs.csv
+    python3 socdash.py build     --data projects/orion_soc --out dashboard.html
+    python3 socdash.py build-all --projects projects --out site
+    python3 socdash.py collect   --logs sim/logs --run-id nightly_42 --date 2026-11-21 \
+                                 --out projects/orion_soc/regression_runs.csv
 
 Only the Python standard library is used, so it runs on any CI machine.
 """
@@ -22,7 +24,13 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-TEMPLATE = HERE / "template.html"
+TEMPLATES = HERE / "templates"
+
+# Input files a project folder holds. config.json may rename any of them under "files".
+DEFAULT_FILES = {"regression": "regression_runs.csv", "coverage": "coverage.csv",
+                 "bugs": "bugs.csv", "testplan": "testplan.csv"}
+# Tunable settings a project may override under "settings" in config.json.
+DEFAULT_SETTINGS = {"intermittent_window": 7, "bug_trend_weeks": 10, "stale_after_days": 3}
 
 STATUSES = ("PASS", "FAIL", "TIMEOUT", "ERROR")
 SEVERITIES = ("S1", "S2", "S3", "S4")
@@ -85,10 +93,11 @@ def load(data_dir: Path) -> dict:
     config_path = data_dir / "config.json"
     if not config_path.exists():
         raise InputError(f"{config_path}: file not found")
-    config = json.loads(config_path.read_text())
+    config = load_config(config_path)
+    files = {k: data_dir / v for k, v in config["files"].items()}
 
     runs = []
-    for r in read_csv(data_dir / "regression_runs.csv", REGRESSION_COLS):
+    for r in read_csv(files["regression"], REGRESSION_COLS):
         runs.append({
             "run_id": r["run_id"],
             "date": _date(r["date"], r["_where"]),
@@ -103,7 +112,7 @@ def load(data_dir: Path) -> dict:
         raise InputError("regression_runs.csv: no rows")
 
     coverage = []
-    for r in read_csv(data_dir / "coverage.csv", COVERAGE_COLS):
+    for r in read_csv(files["coverage"], COVERAGE_COLS):
         covered = _num(r["covered"], r["_where"], int)
         total = _num(r["total"], r["_where"], int)
         if total <= 0 or covered > total:
@@ -117,7 +126,7 @@ def load(data_dir: Path) -> dict:
         })
 
     bugs = []
-    for r in read_csv(data_dir / "bugs.csv", BUG_COLS):
+    for r in read_csv(files["bugs"], BUG_COLS):
         status = _choice(r, "status", BUG_STATES)
         closed = _date(r["closed"], r["_where"]) if r["closed"] else None
         if status == "closed" and closed is None:
@@ -132,7 +141,7 @@ def load(data_dir: Path) -> dict:
 
     milestones = [m["name"] for m in config.get("milestones", [])]
     testplan = []
-    for r in read_csv(data_dir / "testplan.csv", TESTPLAN_COLS):
+    for r in read_csv(files["testplan"], TESTPLAN_COLS):
         if milestones and r["milestone"] not in milestones:
             raise InputError(f"{r['_where']}: milestone '{r['milestone']}' is not in config.json")
         testplan.append({
@@ -141,7 +150,50 @@ def load(data_dir: Path) -> dict:
             "test": r["test"],
         })
 
-    return {"config": config, "runs": runs, "coverage": coverage, "bugs": bugs, "testplan": testplan}
+    return {"config": config, "dir": data_dir, "runs": runs, "coverage": coverage, "bugs": bugs,
+            "testplan": testplan}
+
+
+def load_config(path: Path) -> dict:
+    """Read a project's config.json, check it, and fill in defaults."""
+    try:
+        config = json.loads(path.read_text())
+    except json.JSONDecodeError as e:
+        raise InputError(f"{path}: invalid JSON at line {e.lineno}: {e.msg}") from None
+    if not isinstance(config, dict):
+        raise InputError(f"{path}: must be a JSON object")
+    unknown_files = set(config.get("files", {})) - set(DEFAULT_FILES)
+    if unknown_files:
+        raise InputError(f"{path}: unknown key(s) in \"files\": {', '.join(sorted(unknown_files))}; "
+                         f"use {', '.join(DEFAULT_FILES)}")
+    unknown_settings = set(config.get("settings", {})) - set(DEFAULT_SETTINGS)
+    if unknown_settings:
+        raise InputError(f"{path}: unknown key(s) in \"settings\": {', '.join(sorted(unknown_settings))}; "
+                         f"use {', '.join(DEFAULT_SETTINGS)}")
+    names = [m.get("name") for m in config.get("milestones", [])]
+    if any(not n for n in names) or len(set(names)) != len(names):
+        raise InputError(f"{path}: every milestone needs a unique \"name\"")
+    if config.get("current_milestone") and config["current_milestone"] not in names:
+        raise InputError(f"{path}: current_milestone '{config['current_milestone']}' is not in milestones")
+    config["project"] = config.get("project") or path.parent.name
+    config["files"] = {**DEFAULT_FILES, **config.get("files", {})}
+    config["settings"] = {**DEFAULT_SETTINGS, **config.get("settings", {})}
+    return config
+
+
+def discover_projects(root: Path) -> list[Path]:
+    """Project folders under `root`: every immediate subfolder that holds a config.json."""
+    root = Path(root)
+    if not root.is_dir():
+        raise InputError(f"{root}: folder not found")
+    found = sorted(d for d in root.iterdir() if d.is_dir() and (d / "config.json").exists())
+    if not found:
+        raise InputError(f"{root}: no project folders with a config.json")
+    return found
+
+
+def slugify(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "project"
 
 
 # --------------------------------------------------------------------------- analysis
@@ -339,6 +391,7 @@ def summarize(data: dict, block: str | None) -> dict:
     pick = (lambda rows: rows) if block is None else (lambda rows: [r for r in rows if r["block"] == block])
     runs, cells, bugs, plan = (pick(data[k]) for k in ("runs", "coverage", "bugs", "testplan"))
     order = run_order(data["runs"])  # keep every run on the axis, even ones a block skipped
+    settings = data["config"]["settings"]
     trend = regression_trend(runs, order)
     latest_rate = trend[-1]["rate"] if trend else None
     current = data["config"].get("current_milestone")
@@ -348,21 +401,21 @@ def summarize(data: dict, block: str | None) -> dict:
     return {
         "trend": trend,
         "signatures": failure_signatures(runs, order),
-        "intermittent": intermittent_tests(runs, order),
+        "intermittent": intermittent_tests(runs, order, window=settings["intermittent_window"]),
         "blocks": block_table(runs, order) if block is None else [],
         "coverage": coverage_summary(cells, scale),
         "bugs": {
             "unresolved": {s: sum(1 for b in bugs if b["severity"] == s and b["status"] in UNRESOLVED)
                            for s in SEVERITIES},
             "awaiting_verify": sum(1 for b in bugs if b["status"] == "fixed"),
-            "trend": bug_trend(bugs, data["as_of"]),
+            "trend": bug_trend(bugs, data["as_of"], weeks=settings["bug_trend_weeks"]),
         },
         "testplan": testplan_rollup(plan),
         "signoff": milestones,
     }
 
 
-def build_payload(data: dict) -> dict:
+def build_payload(data: dict, home: str | None = None) -> dict:
     order = run_order(data["runs"])
     data["as_of"] = dt.date.fromisoformat(data["config"]["as_of"]) if data["config"].get("as_of") else order[-1][1]
     blocks = sorted({r["block"] for k in ("runs", "coverage", "bugs", "testplan") for r in data[k]})
@@ -380,16 +433,52 @@ def build_payload(data: dict) -> dict:
         "bugList": [{**b, "opened": b["opened"].isoformat(),
                      "closed": b["closed"].isoformat() if b["closed"] else ""} for b in data["bugs"]],
         "generated": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+        "window": cfg["settings"]["intermittent_window"],
+        "stale_after_days": cfg["settings"]["stale_after_days"],
+        "sources": [*cfg["files"].values(), "config.json"],
+        "home": home,
+    }
+
+
+def project_card(payload: dict, href: str) -> dict:
+    """The one-line summary of a project that the overview page shows."""
+    top = payload["scopes"]["all"]
+    current = next((m for m in top["signoff"] if m["name"] == payload["current_milestone"]), None)
+    due = next((m["date"] for m in payload["milestones"] if m["name"] == payload["current_milestone"]), "")
+    last_run = top["trend"][-1]
+    return {
+        "name": payload["project"], "href": href, "as_of": payload["as_of"],
+        "latest_run": payload["latest_run"], "latest_date": last_run["date"],
+        "blocks": len(payload["blockList"]),
+        "rates": [t["rate"] for t in top["trend"]],
+        "rate": last_run["rate"], "sims": last_run["total"],
+        "cov_met": top["coverage"]["cells_met"], "cov_cells": top["coverage"]["cells"],
+        "bugs": top["bugs"]["unresolved"],
+        "tp_passing": top["testplan"]["totals"]["passing"], "tp_items": top["testplan"]["items"],
+        "milestone": current["name"] if current else None, "due": due,
+        "checks_ok": sum(c["ok"] for c in current["checks"]) if current else 0,
+        "checks": len(current["checks"]) if current else 0,
+        "failing": [c["label"] for c in current["checks"] if not c["ok"]] if current else [],
+        "met": bool(current and current["met"]),
+        "stale_after_days": payload["stale_after_days"],
     }
 
 
 # --------------------------------------------------------------------------- rendering
 
 def render(payload: dict, fragment: bool = False) -> str:
-    template = TEMPLATE.read_text()
+    return _render("project.html", f"{payload['project']} Verification", payload, fragment)
+
+
+def render_overview(overview: dict, fragment: bool = False) -> str:
+    return _render("overview.html", overview["title"], overview, fragment)
+
+
+def _render(template_name: str, title: str, payload: dict, fragment: bool) -> str:
+    template = (TEMPLATES / template_name).read_text().replace("/*__CSS__*/", (TEMPLATES / "base.css").read_text())
     head, body = template.split("<!--BODY-->", 1)
     blob = json.dumps(payload, separators=(",", ":")).replace("</", "<\\/")
-    head = head.replace("__TITLE__", _html_escape(f"{payload['project']} Verification"))
+    head = head.replace("__TITLE__", _html_escape(title))
     body = body.replace("__SOCDASH_DATA__", blob)
     if fragment:
         return head + body
@@ -474,11 +563,20 @@ def main(argv=None) -> int:
     sub = p.add_subparsers(dest="cmd", required=True)
 
     b = sub.add_parser("build", help="build the HTML dashboard")
-    b.add_argument("--data", type=Path, default=HERE / "sample_data", help="folder with the CSVs and config.json")
+    b.add_argument("--data", type=Path, default=HERE / "projects" / "orion_soc",
+                   help="project folder with config.json and the CSV files")
     b.add_argument("--out", type=Path, default=Path("dashboard.html"))
     b.add_argument("--fragment", action="store_true", help="omit <html>/<head>/<body> for embedding")
     b.add_argument("--fail-on-signoff", action="store_true",
                    help="exit 2 if the current milestone's sign-off criteria are not met")
+
+    a = sub.add_parser("build-all", help="build every project's dashboard plus an overview page")
+    a.add_argument("--projects", type=Path, default=HERE / "projects",
+                   help="folder whose subfolders are projects (each with a config.json)")
+    a.add_argument("--out", type=Path, default=Path("site"), help="output folder")
+    a.add_argument("--title", default="SoC verification portfolio", help="overview page title")
+    a.add_argument("--fail-on-signoff", action="store_true",
+                   help="exit 2 if any project's current milestone criteria are not met")
 
     c = sub.add_parser("collect", help="append results from UVM logs to regression_runs.csv")
     c.add_argument("--logs", type=Path, required=True, help="folder of logs; first subfolder is the block")
@@ -494,15 +592,25 @@ def main(argv=None) -> int:
             n = collect(args.logs, args.run_id, args.date, args.out, args.block, args.pattern)
             print(f"Appended {n} result(s) to {args.out}")
             return 0
+        if args.cmd == "build-all":
+            return build_all(args.projects, args.out, args.title, args.fail_on_signoff)
         payload = build_payload(load(args.data))
         args.out.write_text(render(payload, args.fragment))
     except InputError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
 
+    print(f"Wrote {args.out}")
+    current = print_summary(payload)
+    if args.fail_on_signoff and current and not current["met"]:
+        return 2
+    return 0
+
+
+def print_summary(payload: dict):
     top = payload["scopes"]["all"]
     rate = top["trend"][-1]["rate"]
-    print(f"Wrote {args.out}  ({payload['project']}, run {payload['latest_run']}, as of {payload['as_of']})")
+    print(f"{payload['project']}: run {payload['latest_run']}, as of {payload['as_of']}")
     print(f"  pass rate {rate:.1%}  |  coverage cells at target {top['coverage']['cells_met']}/{top['coverage']['cells']}"
           f"  |  unresolved S1 {top['bugs']['unresolved']['S1']}, S2 {top['bugs']['unresolved']['S2']}")
     current = next((m for m in top["signoff"] if m["name"] == payload["current_milestone"]), None)
@@ -511,9 +619,42 @@ def main(argv=None) -> int:
         print(f"  {current['name']} sign-off: {ok}/{len(current['checks'])} criteria met")
         for chk in current["checks"]:
             print(f"    [{'x' if chk['ok'] else ' '}] {chk['label']}: {chk['actual']} (need {chk['need']})")
-        if args.fail_on_signoff and not current["met"]:
-            return 2
-    return 0
+    return current
+
+
+def build_all(projects_root: Path, out: Path, title: str, fail_on_signoff: bool = False) -> int:
+    """Build <out>/index.html (overview) and <out>/<project-slug>.html for each project.
+
+    A project whose inputs are broken still appears on the overview, marked with the
+    error, so one bad file does not hide every other project. Returns the exit code.
+    """
+    out.mkdir(parents=True, exist_ok=True)
+    cards, errors, unmet, used = [], 0, 0, set()
+    for folder in discover_projects(projects_root):
+        slug = slugify(folder.name)
+        while slug in used:
+            slug += "-x"
+        used.add(slug)
+        href = f"{slug}.html"
+        try:
+            payload = build_payload(load(folder), home="index.html")
+        except InputError as e:
+            errors += 1
+            print(f"error: {folder.name}: {e}", file=sys.stderr)
+            cards.append({"name": folder.name, "href": None, "error": str(e)})
+            continue
+        (out / href).write_text(render(payload))
+        card = project_card(payload, href)
+        cards.append(card)
+        unmet += not card["met"]
+        print_summary(payload)
+    overview = {"title": title, "projects": cards,
+                "generated": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}
+    (out / "index.html").write_text(render_overview(overview))
+    print(f"Wrote {out / 'index.html'} and {len(cards) - errors} project page(s)")
+    if errors:
+        return 1
+    return 2 if fail_on_signoff and unmet else 0
 
 
 if __name__ == "__main__":

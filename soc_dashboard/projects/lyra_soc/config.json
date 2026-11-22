@@ -1,0 +1,37 @@
+{
+  "project": "Lyra SoC",
+  "current_milestone": "DV 1.0",
+  "settings": {
+    "intermittent_window": 10,
+    "bug_trend_weeks": 12
+  },
+  "milestones": [
+    {
+      "name": "DV 0.8",
+      "date": "2026-10-30",
+      "criteria": {
+        "min_pass_rate": 0.9,
+        "coverage_target_scale": 0.9,
+        "max_unresolved_bugs": {
+          "S1": 0,
+          "S2": 5
+        },
+        "min_testplan_passing": 0.8
+      }
+    },
+    {
+      "name": "DV 1.0",
+      "date": "2026-12-04",
+      "criteria": {
+        "min_pass_rate": 0.97,
+        "coverage_target_scale": 0.98,
+        "max_unresolved_bugs": {
+          "S1": 0,
+          "S2": 1
+        },
+        "min_testplan_written": 1.0,
+        "min_testplan_passing": 0.95
+      }
+    }
+  ]
+}

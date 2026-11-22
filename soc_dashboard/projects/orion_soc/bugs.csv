@@ -1,0 +1,47 @@
+id,title,block,severity,status,opened,closed
+DV-40,cpu cluster issue found in early bring-up,cpu_cluster,S3,closed,2026-09-04,2026-09-17
+DV-41,noc fabric issue found in early bring-up,noc_fabric,S2,closed,2026-09-02,2026-09-11
+DV-42,usb3 ctrl issue found in early bring-up,usb3_ctrl,S3,closed,2026-10-14,2026-11-04
+DV-43,ddr ctrl issue found in early bring-up,ddr_ctrl,S2,closed,2026-09-26,2026-10-04
+DV-44,noc fabric issue found in early bring-up,noc_fabric,S4,closed,2026-10-10,2026-10-19
+DV-45,ddr ctrl issue found in early bring-up,ddr_ctrl,S4,closed,2026-10-05,2026-10-25
+DV-46,dma engine issue found in early bring-up,dma_engine,S2,closed,2026-09-21,2026-10-05
+DV-47,noc fabric issue found in early bring-up,noc_fabric,S4,closed,2026-09-27,2026-10-18
+DV-48,usb3 ctrl issue found in early bring-up,usb3_ctrl,S3,closed,2026-10-06,2026-10-11
+DV-49,cpu cluster issue found in early bring-up,cpu_cluster,S4,closed,2026-09-12,2026-10-06
+DV-50,usb3 ctrl issue found in early bring-up,usb3_ctrl,S3,closed,2026-09-02,2026-09-24
+DV-51,pcie ctrl issue found in early bring-up,pcie_ctrl,S4,closed,2026-09-03,2026-09-12
+DV-52,cpu cluster issue found in early bring-up,cpu_cluster,S4,closed,2026-10-04,2026-10-19
+DV-53,io mux issue found in early bring-up,io_mux,S2,closed,2026-09-12,2026-10-05
+DV-54,ddr ctrl issue found in early bring-up,ddr_ctrl,S4,closed,2026-10-07,2026-10-17
+DV-55,dma engine issue found in early bring-up,dma_engine,S2,closed,2026-10-02,2026-10-22
+DV-56,pcie ctrl issue found in early bring-up,pcie_ctrl,S2,closed,2026-10-04,2026-10-10
+DV-57,io mux issue found in early bring-up,io_mux,S3,closed,2026-09-20,2026-10-01
+DV-58,ddr ctrl issue found in early bring-up,ddr_ctrl,S3,closed,2026-09-26,2026-10-07
+DV-59,dma engine issue found in early bring-up,dma_engine,S3,closed,2026-10-14,2026-10-26
+DV-60,cpu cluster issue found in early bring-up,cpu_cluster,S2,closed,2026-09-11,2026-09-26
+DV-61,sec crypto issue found in early bring-up,sec_crypto,S3,closed,2026-09-23,2026-10-07
+DV-62,usb3 ctrl issue found in early bring-up,usb3_ctrl,S2,closed,2026-10-14,2026-10-26
+DV-63,cpu cluster issue found in early bring-up,cpu_cluster,S4,closed,2026-10-13,2026-11-04
+DV-101,ECC decoder does not flag double-bit errors on burst chop,ddr_ctrl,S1,open,2026-11-12,
+DV-102,Completion timeout leaves non-posted queue blocked,pcie_ctrl,S1,open,2026-11-15,
+DV-103,tRFC not honoured after self-refresh exit at 3200 MT/s,ddr_ctrl,S2,open,2026-11-09,
+DV-104,LTSSM hangs in Recovery.RcvrLock after speed change,pcie_ctrl,S2,fixed,2026-11-11,
+DV-105,Responses reorder across VCs under QoS starvation,noc_fabric,S2,open,2026-11-17,
+DV-106,Tamper alert delayed by one clock domain crossing,sec_crypto,S2,fixed,2026-11-13,
+DV-107,U2 exit latency exceeds spec when LPM and remote wake overlap,usb3_ctrl,S2,open,2026-11-18,
+DV-108,Snoop filter evicts dirty line without writeback,cpu_cluster,S2,closed,2026-10-22,2026-11-03
+DV-109,Chained descriptor drops last beat on 4KB boundary,dma_engine,S2,closed,2026-10-26,2026-11-06
+DV-110,Read data corruption with bank group interleave,ddr_ctrl,S1,closed,2026-10-12,2026-11-01
+DV-111,MSI-X table writes ignored after function level reset,pcie_ctrl,S1,closed,2026-10-19,2026-10-30
+DV-112,PMU counter overflow interrupt fires one event late,cpu_cluster,S3,open,2026-11-14,
+DV-113,Decode error response returns wrong ID width,noc_fabric,S3,open,2026-11-10,
+DV-114,Power-down entry blocked by idle refresh counter,ddr_ctrl,S3,open,2026-11-16,
+DV-115,Isochronous packet counter wraps early,usb3_ctrl,S3,fixed,2026-11-12,
+DV-116,Key ladder status register reads stale value,sec_crypto,S3,open,2026-11-19,
+DV-117,Abort status not cleared on channel re-enable,dma_engine,S3,open,2026-11-15,
+DV-118,AER header log captures wrong TLP prefix,pcie_ctrl,S3,open,2026-11-20,
+DV-119,mux4to1 missing default branch infers a latch,io_mux,S3,closed,2026-10-31,2026-11-02
+DV-120,Pinmux register reset value differs from spec table,io_mux,S4,closed,2026-10-31,2026-11-02
+DV-121,Debug halt reason code undocumented value 0x7,cpu_cluster,S4,open,2026-11-17,
+DV-122,QoS register field naming mismatch,noc_fabric,S4,closed,2026-11-03,2026-11-09

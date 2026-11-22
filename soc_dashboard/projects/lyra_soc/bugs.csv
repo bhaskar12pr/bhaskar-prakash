@@ -1,0 +1,48 @@
+id,title,block,severity,status,opened,closed
+LY-40,gpu core issue found in early bring-up,gpu_core,S3,closed,2026-09-20,2026-10-01
+LY-41,mipi csi issue found in early bring-up,mipi_csi,S3,closed,2026-10-23,2026-11-13
+LY-42,mipi csi issue found in early bring-up,mipi_csi,S3,closed,2026-10-08,2026-10-20
+LY-43,mipi csi issue found in early bring-up,mipi_csi,S2,closed,2026-10-20,2026-10-29
+LY-44,gpu core issue found in early bring-up,gpu_core,S3,closed,2026-10-14,2026-10-31
+LY-45,mipi csi issue found in early bring-up,mipi_csi,S4,closed,2026-09-29,2026-10-19
+LY-46,pmu issue found in early bring-up,pmu,S3,closed,2026-09-26,2026-10-19
+LY-47,mipi csi issue found in early bring-up,mipi_csi,S2,closed,2026-10-04,2026-10-26
+LY-48,lpddr5 ctrl issue found in early bring-up,lpddr5_ctrl,S3,closed,2026-10-13,2026-10-26
+LY-49,mipi csi issue found in early bring-up,mipi_csi,S3,closed,2026-09-23,2026-09-27
+LY-50,lpddr5 ctrl issue found in early bring-up,lpddr5_ctrl,S4,closed,2026-10-18,2026-11-06
+LY-51,cpu cluster issue found in early bring-up,cpu_cluster,S4,closed,2026-09-30,2026-10-21
+LY-52,lpddr5 ctrl issue found in early bring-up,lpddr5_ctrl,S3,closed,2026-09-30,2026-10-04
+LY-53,mipi csi issue found in early bring-up,mipi_csi,S3,closed,2026-10-18,2026-11-10
+LY-54,isp pipeline issue found in early bring-up,isp_pipeline,S3,closed,2026-09-08,2026-09-28
+LY-55,pmu issue found in early bring-up,pmu,S3,closed,2026-09-07,2026-09-16
+LY-56,isp pipeline issue found in early bring-up,isp_pipeline,S3,closed,2026-10-12,2026-10-23
+LY-57,pmu issue found in early bring-up,pmu,S4,closed,2026-09-08,2026-09-13
+LY-58,isp pipeline issue found in early bring-up,isp_pipeline,S3,closed,2026-09-22,2026-10-15
+LY-59,isp pipeline issue found in early bring-up,isp_pipeline,S3,closed,2026-09-09,2026-09-18
+LY-60,cpu cluster issue found in early bring-up,cpu_cluster,S3,closed,2026-10-23,2026-11-17
+LY-61,mipi csi issue found in early bring-up,mipi_csi,S3,closed,2026-09-11,2026-09-15
+LY-62,cpu cluster issue found in early bring-up,cpu_cluster,S3,closed,2026-10-16,2026-10-23
+LY-63,isp pipeline issue found in early bring-up,isp_pipeline,S3,closed,2026-10-10,2026-11-02
+LY-64,lpddr5 ctrl issue found in early bring-up,lpddr5_ctrl,S2,closed,2026-09-07,2026-09-26
+LY-65,lpddr5 ctrl issue found in early bring-up,lpddr5_ctrl,S3,closed,2026-09-28,2026-10-13
+LY-66,mipi csi issue found in early bring-up,mipi_csi,S3,closed,2026-10-06,2026-10-28
+LY-67,pmu issue found in early bring-up,pmu,S2,closed,2026-10-12,2026-10-30
+LY-68,pmu issue found in early bring-up,pmu,S2,closed,2026-10-13,2026-10-22
+LY-69,lpddr5 ctrl issue found in early bring-up,lpddr5_ctrl,S2,closed,2026-10-19,2026-11-09
+LY-70,mipi csi issue found in early bring-up,mipi_csi,S3,closed,2026-09-17,2026-09-30
+LY-71,gpu core issue found in early bring-up,gpu_core,S3,closed,2026-10-14,2026-10-22
+LY-72,lpddr5 ctrl issue found in early bring-up,lpddr5_ctrl,S2,closed,2026-09-21,2026-09-30
+LY-73,gpu core issue found in early bring-up,gpu_core,S3,closed,2026-09-02,2026-09-25
+LY-74,pmu issue found in early bring-up,pmu,S3,closed,2026-09-14,2026-09-20
+LY-75,mipi csi issue found in early bring-up,mipi_csi,S4,closed,2026-09-17,2026-10-06
+LY-76,mipi csi issue found in early bring-up,mipi_csi,S3,closed,2026-10-21,2026-11-12
+LY-77,gpu core issue found in early bring-up,gpu_core,S2,closed,2026-10-04,2026-10-28
+LY-78,isp pipeline issue found in early bring-up,isp_pipeline,S4,closed,2026-09-27,2026-10-01
+LY-79,gpu core issue found in early bring-up,gpu_core,S3,closed,2026-10-03,2026-10-15
+LY-201,Compute dispatch hangs when workgroup size is 1024,gpu_core,S2,open,2026-11-16,
+LY-202,Link ECC syndrome dropped during DVFSC switch,lpddr5_ctrl,S2,fixed,2026-11-13,
+LY-203,HDR merge clips highlights one LSB early,isp_pipeline,S3,open,2026-11-17,
+LY-204,MMU fault address register misses upper bits,gpu_core,S3,open,2026-11-18,
+LY-205,Wakeup source status bits not sticky as documented,pmu,S4,open,2026-11-19,
+LY-206,Secure world entry leaks non-secure cache lines,cpu_cluster,S1,closed,2026-10-26,2026-11-12
+LY-207,"Lane deskew fails with 4-lane, 2.5 Gbps",mipi_csi,S2,closed,2026-11-02,2026-11-10

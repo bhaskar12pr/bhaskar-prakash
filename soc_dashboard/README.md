@@ -1,7 +1,8 @@
 # SoC verification dashboard
 
-`socdash.py` turns regression results, coverage, bugs and testplan status into a single
-self-contained HTML page. It answers five questions on one screen:
+`socdash.py` turns regression results, coverage, bugs and testplan status into a
+self-contained HTML dashboard for each SoC project, plus an overview page that compares all
+projects side by side. Each project's page answers five questions on one screen:
 
 | Section     | Shows |
 |-------------|-------|
@@ -20,15 +21,45 @@ Only the Python 3.9+ standard library is needed.
 
 ```sh
 cd soc_dashboard
-python3 socdash.py build --data sample_data --out dashboard.html
+python3 socdash.py build-all --projects projects --out site
 ```
 
-`sample_data/` holds a fictional SoC ("Orion SoC", 8 blocks, 14 nightly runs) made by
-`make_sample_data.py`. Open `dashboard.html` in a browser to see it.
+Open `site/index.html`. It lists every project with its next milestone, sign-off status,
+pass rate trend, coverage, open S1/S2 bugs and testplan progress; select a project name to
+open its dashboard (`site/<project>.html`), which links back to the overview.
 
-## Using your own data
+## Projects
 
-Make a folder with the five files below and point `--data` at it.
+Every project is its own folder under `projects/`, with its own `config.json` and data
+files. `build-all` treats each subfolder that contains a `config.json` as a project and
+ignores the rest, so adding a project means adding a folder:
+
+```
+projects/
+├── orion_soc/           8 blocks, working toward DV 0.8
+│   ├── config.json
+│   ├── regression_runs.csv
+│   ├── coverage.csv
+│   ├── bugs.csv
+│   └── testplan.csv
+├── lyra_soc/            6 blocks, close to DV 1.0; uses custom settings
+└── nova_io_hub/         4 blocks, DV 1.0 met; renames its regression file
+```
+
+These three are fictional samples made by `make_sample_data.py`. Delete them and add your own.
+
+If one project's files are broken, `build-all` still builds the others, shows the broken
+project on the overview with the error, and exits with status 1.
+
+To build a single project:
+
+```sh
+python3 socdash.py build --data projects/orion_soc --out orion.html
+```
+
+## Project files
+
+Each project folder holds the five files below.
 
 ### `regression_runs.csv` — one row per simulation
 
@@ -47,7 +78,7 @@ You don't have to write this by hand. `collect` reads UVM logs and appends rows:
 
 ```sh
 python3 socdash.py collect --logs sim/out --run-id nightly_1122 --date 2026-11-22 \
-    --out my_data/regression_runs.csv
+    --out projects/orion_soc/regression_runs.csv
 ```
 
 It expects `sim/out/<block>/<anything>.log` (or pass `--block NAME`). For each log it takes the
@@ -80,10 +111,15 @@ test from `+UVM_TESTNAME=` or `Running test`, the seed from `ntb_random_seed` / 
 
 ### `config.json`
 
+Everything about a project that is not data lives here, so projects can differ in
+milestones, criteria, file names and settings.
+
 ```json
 {
   "project": "Orion SoC",
   "current_milestone": "DV 0.8",
+  "files": {"regression": "nightly_results.csv"},
+  "settings": {"intermittent_window": 10, "bug_trend_weeks": 12, "stale_after_days": 3},
   "milestones": [
     {"name": "DV 0.8", "date": "2026-12-11",
      "criteria": {
@@ -95,6 +131,19 @@ test from `+UVM_TESTNAME=` or `Running test`, the seed from `ntb_random_seed` / 
   ]
 }
 ```
+
+| key | meaning | default |
+|---|---|---|
+| `project` | name shown on the pages | the folder name |
+| `current_milestone` | milestone the KPI strip and overview track | none |
+| `files` | rename any of `regression`, `coverage`, `bugs`, `testplan`; paths are relative to the project folder | `regression_runs.csv`, `coverage.csv`, `bugs.csv`, `testplan.csv` |
+| `settings.intermittent_window` | runs examined for tests that both pass and fail | 7 |
+| `settings.bug_trend_weeks` | weeks shown in the bug trend | 10 |
+| `settings.stale_after_days` | overview flags a project whose latest run is older than this | 3 |
+| `milestones` | ordered list of `name`, `date` and `criteria` | none |
+
+Misspelled keys under `files` or `settings`, duplicate milestone names, and a
+`current_milestone` that is not in the list are rejected with a clear message.
 
 Every criterion is optional:
 
@@ -110,12 +159,13 @@ latest run's date.
 ## In CI
 
 ```sh
-python3 socdash.py build --data results/ --out public/dashboard.html --fail-on-signoff
+python3 socdash.py build-all --projects projects --out public --fail-on-signoff
 ```
 
-The command prints a summary and, with `--fail-on-signoff`, exits with status 2 while the
-current milestone's criteria are not all met. Malformed input exits with status 1 and names the
-file and line.
+The command prints a summary per project and, with `--fail-on-signoff`, exits with status 2
+while any project's current milestone criteria are not all met (`build --fail-on-signoff` does
+the same for one project). Malformed input exits with status 1 and names the file and line.
+`--title` sets the overview page's heading.
 
 `--fragment` writes the page without `<html>`, `<head>` and `<body>` so it can be embedded in
 another page.
