@@ -1,0 +1,29 @@
+# GitLab CI/CD pipeline for the Verilog designs in rtl/ and testbenches in tb/.
+# Runs on every push and merge request: lint -> simulate.
+
+image: ubuntu:24.04
+
+stages:
+  - lint
+  - test
+
+before_script:
+  - apt-get update -qq
+  - apt-get install -y -qq --no-install-recommends iverilog make > /dev/null
+  - iverilog -V | head -1
+
+lint:
+  stage: lint
+  script:
+    - make lint
+
+simulate:
+  stage: test
+  script:
+    - make sim
+  artifacts:
+    when: always
+    expire_in: 1 week
+    paths:
+      - build/*.log
+      - build/*.vcd
