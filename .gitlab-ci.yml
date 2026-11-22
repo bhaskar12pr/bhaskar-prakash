@@ -1,5 +1,8 @@
-# GitLab CI/CD pipeline for the Verilog designs in rtl/ and testbenches in tb/.
-# Runs on every push and merge request: lint -> simulate.
+# GitLab CI/CD pipeline for the RTL in rtl/ and testbenches in tb/.
+# Mirrors .github/workflows/ci.yml: both just call the Makefile.
+#
+#   lint ──┬─► simulate   (Icarus testbenches + JUnit report in the MR "Tests" tab)
+#          └─► synth      (Yosys generic synthesis, latch check)
 
 image: ubuntu:24.04
 
@@ -7,23 +10,48 @@ stages:
   - lint
   - test
 
-before_script:
+variables:
+  DEBIAN_FRONTEND: noninteractive
+
+.install: &install
   - apt-get update -qq
-  - apt-get install -y -qq --no-install-recommends iverilog make > /dev/null
-  - iverilog -V | head -1
+  - apt-get install -y -qq --no-install-recommends make python3 $TOOLS > /dev/null
 
 lint:
   stage: lint
+  variables:
+    TOOLS: iverilog verilator
   script:
+    - *install
     - make lint
 
 simulate:
   stage: test
+  variables:
+    TOOLS: iverilog
   script:
-    - make sim
+    - *install
+    - make -k sim
+  after_script:
+    - make junit || true
   artifacts:
     when: always
     expire_in: 1 week
     paths:
       - build/*.log
       - build/*.vcd
+    reports:
+      junit: build/junit.xml
+
+synth:
+  stage: test
+  variables:
+    TOOLS: yosys
+  script:
+    - *install
+    - make synth
+  artifacts:
+    when: always
+    expire_in: 1 week
+    paths:
+      - build/synth_*
