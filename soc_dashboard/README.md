@@ -1,42 +1,58 @@
 # SoC verification dashboard
 
-`socdash.py` turns regression results, coverage, bugs and testplan status into a
-self-contained HTML dashboard for each SoC project, plus an overview page that compares all
-projects side by side. Each project's page answers five questions on one screen:
+`socdash.py` turns regression results, coverage, bugs and testplan status into
+self-contained HTML pages: an overview of all projects, a dashboard per project, and a
+regression drill-down per project. Every page is built to show progress: where things
+stand, how fast they are moving, and whether they will be done in time.
+
+### Overview (`index.html`)
+
+* One row per project: next milestone and which criteria are short, pass rate with its trend
+  and **forecast**, coverage, open S1/S2 bugs, testplan progress and latest run.
+* **Owners across projects**: each person's latest week in every project they work on —
+  tests passing start → end, weekly target met or missed, new failures, fixes, longest
+  failing test, open bugs and forecast.
+
+### Project dashboard (`<project>.html`)
 
 | Section     | Shows |
 |-------------|-------|
-| Regression  | Pass rate per nightly run against the milestone bar, failing sims by fail/timeout/error, per-block table, failure signatures in the latest run, and tests that flip between pass and fail over the last 7 runs |
-| Coverage    | Line, branch, toggle, FSM, assertion and functional coverage per metric (bullet bars against target) and as a block × metric matrix |
-| Bugs        | Unresolved bugs by severity, weekly unresolved trend, and the open/fixed list with age |
-| Testplan    | Planned / written / passing items per feature |
-| Sign-off    | Each milestone's criteria evaluated as met or not, with the current milestone highlighted |
+| Regression  | Pass rate per nightly run against the milestone bar with a **forecast**, failing sims by fail/timeout/error, per-block table, failure signatures, intermittent tests |
+| Coverage    | Each metric against target, a block × metric matrix, and **coverage over time** per metric with the pace needed to reach target |
+| Bugs        | Unresolved bugs by severity, weekly trend, the open list with age, and **time to fix** per severity (median, 90th percentile, oldest open) |
+| Testplan    | **Items by status at the end of each week**, and planned / written / passing per feature |
+| Sign-off    | Each milestone's criteria evaluated as met or not |
 
-Each project also gets a **regression page** (`<project>-regression.html`) that drills down
-subsystem → module → instance → test:
+Every section can be narrowed to one block with the chips at the top or the block table.
+The URL hash keeps the choice (`orion-soc.html#ddr-ctrl`).
 
-* **Progress at every level.** Tests passing / failing / not run in the latest run, simulation
-  pass rate with its change and trend, new failures and fixes since the previous run, and
-  failing simulations by fail / timeout / error.
-* **Progress over time.** Pass rate against the milestone bar, and tests passing vs failing
-  in every nightly run, so suite growth and closure both show.
-* **Failing tests grouped by signature**, with the instances they hit.
-* **Per-test detail.** The last N runs as a strip, seeds passing, when the current outcome
-  started, and the first error. Filter by failing, new failures, fixed, flipping (pass/fail
-  changed at least twice) or not run, or search by name.
+### Regression drill-down (`<project>-regression.html`)
 
-* **Owner progress by week**, when the project has an `owners.csv`. Pick a week; each owner's
-  row shows tests passing at the start and end of the week, new failures, fixes, tests added,
-  the week's sim pass rate and its change from the week before, bugs opened and closed, bugs
-  still open at week end, and a small chart of tests passing at the end of each week. "Show
-  tests" lists that owner's tests below. The tree and test list also gain an owner column.
+Drills down subsystem → module → instance → test. Select any node and every panel follows;
+the URL keeps the selection (`#memory-ss--ddr-ctrl--u-ddr1`).
 
-Select any subsystem, module or instance in the tree and every panel follows; the URL keeps
-the selection (`orion-soc-regression.html#memory-ss--ddr-ctrl--u-ddr1`) so you can share it.
-A test passes a run only if every seed passed.
+* **Run picker.** View any past nightly run and compare it with any other (the run before,
+  by default). Counts, the tree, failures and the test list all follow.
+* **Forecast** for every subsystem, module, instance and owner: when the sim pass rate will
+  reach the milestone bar, and whether that is before the due date — *met*, *on track*,
+  *at risk*, *stalled* (not improving) or *projected* (no due date).
+* **This week.** Pick a week: passing start → end, fixed, new failures, tests added, still
+  failing, stuck (failing for `stuck_days` or more), the parts that improved or slipped most,
+  and the longest-failing tests.
+* **Burn-up**: tests run vs tests passing over time, with the recent pace projected to the
+  milestone date. Next to it, the pass rate with its trend line to the target.
+* **Failures**: failing tests grouped by first error, and how long they have been failing.
+* **Owners** (with `owners.csv`): per week, tests passing start → end, the weekly target
+  (`owner_targets.csv`), new failures, fixes, tests added, longest failing test, sim pass rate,
+  functional coverage start → end, bugs opened / closed / open, median days to fix, forecast,
+  and a weekly bar chart with target ticks. "Show tests" lists that owner's tests.
+* **Tree** with tests passing, pass rate, change, trend, new failures, fixes, forecast and owner.
+* **Tests** as a table (history strip, seeds, status, days failing, since, owner, first error)
+  or as a **heatmap** of tests × runs. Filters: failing, new failures, fixed, stuck, flipping
+  (pass/fail changed at least twice in the last runs), not run; plus search.
 
-Every section of the project dashboard can be narrowed to one block with the chips at the top, or by selecting a row in
-the block table. The URL hash keeps the choice (`dashboard.html#ddr-ctrl`).
+A test passes a run only if every seed passed. Forecasts fit a straight line to the last
+`forecast_runs` runs; treat them as a guide.
 
 Only the Python 3.9+ standard library is needed.
 
@@ -59,14 +75,17 @@ ignores the rest, so adding a project means adding a folder:
 
 ```
 projects/
-├── orion_soc/           8 blocks, working toward DV 0.8
+├── orion_soc/              8 blocks, 4 weeks of runs, working toward DV 0.8
 │   ├── config.json
-│   ├── regression_runs.csv
-│   ├── coverage.csv
-│   ├── bugs.csv
-│   └── testplan.csv
-├── lyra_soc/            6 blocks, close to DV 1.0; uses custom settings
-└── nova_io_hub/         4 blocks, DV 1.0 met; renames its regression file
+│   ├── regression_runs.csv    with subsystem and instance columns
+│   ├── coverage.csv           weekly dated snapshots
+│   ├── bugs.csv               with an owner column for two bugs
+│   ├── testplan.csv
+│   ├── testplan_history.csv   optional
+│   ├── owners.csv             optional
+│   └── owner_targets.csv      optional
+├── lyra_soc/                 6 blocks, close to DV 1.0; subsystems in config.json
+└── nova_io_hub/              4 blocks, DV 1.0 met; no owners; renames its regression file
 ```
 
 These three are fictional samples made by `make_sample_data.py`. Delete them and add your own.
@@ -82,7 +101,8 @@ python3 socdash.py build --data projects/orion_soc --out orion.html
 
 ## Project files
 
-Each project folder holds the files below; `owners.csv` is optional.
+Each project folder holds the files below. `owners.csv`, `owner_targets.csv` and
+`testplan_history.csv` are optional; without them the views that need them are hidden.
 
 ### `regression_runs.csv` — one row per simulation
 
@@ -128,6 +148,11 @@ test from `+UVM_TESTNAME=` or `Running test`, the seed from `ntb_random_seed` / 
 `assertion` or `functional`. Export bins/points covered and total from your coverage tool
 (for example `urg -report` or `imc -exec` merged results).
 
+Add an optional `date` column and append a snapshot each week (or each night) to get
+**coverage over time**. The latest snapshot of each block and metric is the current value;
+a block missing from a later snapshot keeps its previous value. Owners get the functional
+coverage of the modules they own.
+
 ### `bugs.csv`
 
 `id, title, block, severity, status, opened, closed`
@@ -159,6 +184,29 @@ one instance), add an optional `owner` column to `bugs.csv`.
 Weeks end on the project's as-of date (the latest run date unless `as_of` is set) and step
 back 7 days at a time; weeks without runs are skipped. A week's "start" is the last run before
 it began and its "end" is its last run.
+
+### `owner_targets.csv` (optional)
+
+```csv
+owner,week_end,target_passing
+Asha,2026-11-21,16
+Elif,2026-11-21,10
+```
+
+The number of an owner's tests expected to pass at the end of a week. `week_end` must match a
+week end on the page (the as-of date, then every 7 days back). Owners must be in `owners.csv`.
+
+### `testplan_history.csv` (optional)
+
+```csv
+date,id,status
+2026-10-02,TP-014,written
+2026-10-20,TP-014,passing
+```
+
+One row per status change. An item's status at a date is its latest change on or before that
+date; before its first change it counts as planned. Items with no changes keep their current
+status from `testplan.csv`. This drives **items by status at the end of each week**.
 
 ### `testplan.csv`
 
@@ -198,7 +246,9 @@ milestones, criteria, file names and settings.
 | `settings.bug_trend_weeks` | weeks shown in the bug trend | 10 |
 | `settings.stale_after_days` | overview flags a project whose latest run is older than this | 3 |
 | `settings.test_history_runs` | runs shown in each test's history strip on the regression page | 10 |
-| `settings.owner_weeks` | weeks offered in the owner progress picker | 6 |
+| `settings.weeks` | weeks offered in the week picker (weekly digest and owners) | 6 |
+| `settings.forecast_runs` | recent runs the forecast line is fitted to | 10 |
+| `settings.stuck_days` | a test failing this many days or more counts as stuck | 7 |
 | `subsystems` | group blocks into subsystems when the regression CSV has no `subsystem` column | none |
 | `milestones` | ordered list of `name`, `date` and `criteria` | none |
 

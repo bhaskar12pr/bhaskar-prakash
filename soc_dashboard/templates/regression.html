@@ -4,7 +4,12 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600&display=swap">
 <style>
 /*__CSS__*/
-/* Regression drill-down: pick a node in the subsystem > module > instance tree; every panel follows it. */
+/* Regression drill-down: pick a node in the subsystem > module > instance tree and a run to view;
+   every panel follows both. The week picker drives the weekly digest and owner progress. */
+.controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; padding: 10px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+.controls label { display: flex; align-items: center; gap: 8px; font-size: .85rem; color: var(--muted); flex-wrap: wrap; }
+.controls select { font: 500 .85rem var(--font-mono); padding: 5px 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--ink); max-width: 100%; }
+.controls .viewing { font-size: .82rem; }
 .crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; font-size: .9rem; }
 .crumbs button { font: 500 .88rem var(--font-mono); background: none; border: 0; padding: 2px 4px; color: var(--accent); cursor: pointer; border-radius: 3px; }
 .crumbs button:hover { background: var(--accent-soft); }
@@ -12,7 +17,21 @@
 .crumbs .sep { color: var(--muted); }
 .lvl { font: 500 .66rem var(--font-body); text-transform: uppercase; letter-spacing: .07em; color: var(--muted); border: 1px solid var(--line); border-radius: 3px; padding: 0 5px; white-space: nowrap; }
 
-.tree { min-width: 900px; }
+
+.digest { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 18px; }
+.digest > * { min-width: 0; grid-column: span 4; display: grid; gap: 8px; align-content: start; }
+.dnums { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.dnums div { background: var(--surface); padding: 10px 12px; display: grid; gap: 2px; align-content: start; }
+.dnums b { font: 600 1.35rem/1.1 var(--font-display); font-variant-numeric: tabular-nums; }
+.dnums small { font-size: .76rem; color: var(--muted); }
+.mover { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; font-size: .84rem; }
+.mover .nm { font-family: var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mover button { font: inherit; background: none; border: 0; padding: 0; color: var(--ink); cursor: pointer; text-align: left; }
+.mover button:hover { color: var(--accent); text-decoration: underline; }
+.listhead { font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 500; margin-top: 4px; }
+@media (max-width: 900px) { .digest > * { grid-column: 1 / -1; } }
+
+.tree { min-width: 980px; }
 .tree td { vertical-align: middle; padding-block: 6px; }
 .tree tr.sel td { background: var(--accent-soft); }
 .tree tr:hover td { background: var(--sunken); }
@@ -21,43 +40,60 @@
 .tree .tog { width: 20px; height: 20px; flex: none; border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 3px; cursor: pointer; font: 600 .8rem/1 var(--font-mono); padding: 0; }
 .tree .tog:hover { border-color: var(--accent); color: var(--accent); }
 .tree .tog-space { width: 20px; flex: none; }
-.tree .pick { font: 500 .86rem var(--font-mono); background: none; border: 0; padding: 2px 4px; color: var(--ink); cursor: pointer; border-radius: 3px; text-align: left; }
-.tree .pick:hover { color: var(--accent); text-decoration: underline; }
+.tree .pick, .linkish { font: 500 .86rem var(--font-mono); background: none; border: 0; padding: 2px 4px; color: var(--ink); cursor: pointer; border-radius: 3px; text-align: left; }
+.linkish { color: var(--accent); font-family: var(--font-body); }
+.tree .pick:hover, .linkish:hover { color: var(--accent); text-decoration: underline; }
 .tree tr[data-level="subsystem"] .pick { font-weight: 600; }
-.prog { display: grid; grid-template-columns: minmax(80px, 1fr) auto; gap: 8px; align-items: center; min-width: 170px; }
+.prog { display: grid; grid-template-columns: minmax(80px, 1fr) auto; gap: 8px; align-items: center; min-width: 160px; }
 .prog .stack { height: 10px; }
 .s-failing { background: var(--fail); } .s-notrun { background: var(--planned); }
 .tree svg { display: block; width: 90px; height: 22px; }
 .count0 { color: var(--muted); }
+.own { font-size: .78rem; color: var(--muted); white-space: nowrap; }
 
 .filters { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.filters input { font: .85rem var(--font-body); padding: 5px 9px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--ink); min-width: 0; width: 220px; max-width: 100%; }
-.tests { min-width: 980px; }
+.filters input { font: .85rem var(--font-body); padding: 5px 9px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--ink); min-width: 0; width: 230px; max-width: 100%; }
+.chip[aria-pressed="true"] .muted { color: inherit; opacity: .8; }
+.tests { min-width: 1060px; }
 .tests td { vertical-align: middle; }
 .where { font: .76rem var(--font-mono); color: var(--muted); white-space: nowrap; }
 .strip span.none { background: transparent; border: 1px dashed var(--line); }
 .tag-new { font: 600 .66rem var(--font-body); text-transform: uppercase; letter-spacing: .06em; color: var(--fail); margin-left: 6px; }
 .tag-fixed { font: 600 .66rem var(--font-body); text-transform: uppercase; letter-spacing: .06em; color: var(--pass); margin-left: 6px; }
-.chip[aria-pressed="true"] .muted { color: inherit; opacity: .8; }
-.owners { min-width: 940px; }
+.more { font: 500 .84rem var(--font-body); color: var(--accent); background: none; border: 1px solid var(--line); border-radius: 4px; padding: 6px 12px; cursor: pointer; justify-self: start; }
+.kpi .bar { display: flex; height: 8px; border-radius: 2px; overflow: hidden; background: var(--sunken); margin-top: 4px; }
+.kpi .bar span { display: block; height: 100%; }
+.age-hot { color: var(--fail); font-weight: 600; }
+
+.heat { display: grid; font-size: .74rem; min-width: max-content; }
+.heat .hrow { display: grid; grid-template-columns: 240px auto; align-items: center; }
+.heat .hlabel { font: .76rem var(--font-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 10px; }
+.heat .hgroup { font: 600 .74rem var(--font-mono); color: var(--muted); padding: 8px 0 3px; border-top: 1px solid var(--line); margin-top: 4px; }
+.heat .cells { display: flex; gap: 2px; padding: 1px 0; }
+.heat .cells span { width: 12px; height: 14px; border-radius: 2px; flex: none; outline: 1px dashed var(--line); outline-offset: -1px; }
+.heat .cells span.P { background: var(--pass); outline: 0; } .heat .cells span.F { background: var(--fail); outline: 0; }
+.heat .cells span.T { background: var(--warn); outline: 0; } .heat .cells span.E { background: var(--err); outline: 0; }
+.heat .cells span.v { box-shadow: 0 0 0 2px var(--ink); }
+.heat .cells span.c { box-shadow: 0 0 0 1px var(--muted); }
+.heat .dates span { outline: 0; height: 46px; font-size: .62rem; color: var(--muted); writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; }
+
+.owners { min-width: 1240px; }
 .owners th { white-space: normal; }
 .owners td { vertical-align: middle; padding-block: 10px; }
 .owners .who { font: 600 1rem var(--font-display); }
-.owners .scopes { font: .74rem var(--font-mono); color: var(--muted); max-width: 200px; white-space: normal; overflow-wrap: anywhere; }
+.owners td:first-child { min-width: 170px; }
+.owners .scopes { font: .74rem var(--font-mono); color: var(--muted); max-width: 180px; white-space: normal; overflow-wrap: break-word; word-break: break-word; }
 .owners .moved { display: flex; align-items: baseline; gap: 6px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .owners .moved b { font: 600 1.1rem var(--font-display); }
 .owners .stack { height: 8px; margin-top: 5px; }
 .owners tr.on td { background: var(--accent-soft); }
-.weekbars { display: flex; align-items: flex-end; gap: 3px; height: 30px; }
+.owners .small { font-size: .74rem; color: var(--muted); }
+.weekbars { display: flex; align-items: flex-end; gap: 3px; height: 32px; }
 .weekbars span { width: 10px; background: var(--planned); border-radius: 1px; position: relative; }
 .weekbars span.cur { background: var(--accent); }
-.wk-btn { font: 500 .82rem var(--font-body); }
+.weekbars span i { position: absolute; left: -2px; right: -2px; height: 2px; background: var(--ink); }
 .who-btn { font: 500 .8rem var(--font-body); color: var(--accent); background: none; border: 1px solid var(--line); border-radius: 4px; padding: 4px 9px; cursor: pointer; white-space: nowrap; }
 .who-btn:hover { border-color: var(--accent); }
-.tree .own { font-size: .78rem; color: var(--muted); white-space: nowrap; }
-.more { font: 500 .84rem var(--font-body); color: var(--accent); background: none; border: 1px solid var(--line); border-radius: 4px; padding: 6px 12px; cursor: pointer; justify-self: start; }
-.kpi .bar { display: flex; height: 8px; border-radius: 2px; overflow: hidden; background: var(--sunken); margin-top: 4px; }
-.kpi .bar span { display: block; height: 100%; }
 </style>
 <!--BODY-->
 <div class="wrap">
@@ -69,20 +105,54 @@
     </div>
   </header>
 
+  <div class="controls">
+    <label for="run-view">Viewing run <select id="run-view"></select></label>
+    <label for="run-cmp">compared with <select id="run-cmp"></select></label>
+    <span class="viewing muted" id="viewing"></span>
+  </div>
+
   <nav class="crumbs" id="crumbs" aria-label="Selected part of the design"></nav>
 
   <div class="kpis" id="kpis"></div>
 
   <section class="band">
-    <div class="band-head"><h2>Progress</h2><p id="prog-note"></p></div>
+    <div class="band-head"><h2>This week</h2><p id="dg-note"></p></div>
+    <div class="panel">
+      <div class="filters weeks" role="group" aria-label="Week"></div>
+      <div class="digest">
+        <div id="dg-nums"></div>
+        <div id="dg-movers"></div>
+        <div id="dg-oldest"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="band-head"><h2>Progress and forecast</h2><p id="prog-note"></p></div>
+    <div class="grid">
+      <div class="panel span-6">
+        <div class="panel-head"><h3>Burn-up: tests passing against tests run</h3>
+          <span class="legend"><span><i style="background:var(--muted)"></i>tests run</span><span><i class="s-passing"></i>passing</span><span><i style="background:var(--pass);opacity:.5"></i>projected</span></span></div>
+        <div id="burnup"></div>
+      </div>
+      <div class="panel span-6">
+        <div class="panel-head"><h3>Sim pass rate and forecast</h3>
+          <span class="legend"><span><i style="background:var(--accent)"></i>pass rate</span><span><i style="background:var(--accent);opacity:.5"></i>trend to target</span></span></div>
+        <div id="ratechart"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="band-head"><h2>Failures</h2><p id="fail-note"></p></div>
     <div class="grid">
       <div class="panel span-7">
-        <div class="panel-head"><h3 id="trend-title">Pass rate and tests per nightly run</h3><span class="legend"><span><i style="background:var(--accent)"></i>sim pass rate</span><span><i class="s-passing"></i>tests passing</span><span><i class="s-failing"></i>tests failing</span></span></div>
-        <div id="trend"></div>
-      </div>
-      <div class="panel span-5">
         <div class="panel-head"><h3>Failing tests by signature</h3></div>
         <div class="scroll" id="sigs"></div>
+      </div>
+      <div class="panel span-5">
+        <div class="panel-head"><h3>How long tests have been failing</h3></div>
+        <div id="ages"></div>
       </div>
     </div>
   </section>
@@ -91,18 +161,18 @@
     <div class="band-head"><h2>Owners</h2><p id="own-note"></p></div>
     <div class="panel">
       <div class="panel-head">
-        <div class="filters" id="weeks" role="group" aria-label="Week"></div>
-        <span class="muted" style="font-size:.78rem">Start is the last run before the week; end is the week's last run.</span>
+        <div class="filters weeks" role="group" aria-label="Week"></div>
+        <span class="muted" style="font-size:.78rem">Start is the last run before the week; end is the week's last run. The black tick on each weekly bar is the target.</span>
       </div>
       <div class="scroll"><table class="owners" id="owners"></table></div>
     </div>
   </section>
 
   <section class="band">
-    <div class="band-head"><h2>Subsystems, modules and instances</h2><p>Select a name to focus every panel on it. Progress counts tests in the latest run.</p></div>
+    <div class="band-head"><h2>Subsystems, modules and instances</h2><p>Select a name to focus every panel on it. Counts are for the run you are viewing.</p></div>
     <div class="panel">
       <div class="panel-head">
-        <span class="legend"><span><i class="s-passing"></i>passing</span><span><i class="s-failing"></i>failing</span><span><i class="s-notrun"></i>not run in latest</span></span>
+        <span class="legend"><span><i class="s-passing"></i>passing</span><span><i class="s-failing"></i>failing</span><span><i class="s-notrun"></i>not run</span></span>
         <span class="filters"><button type="button" class="chip" id="expand-all">Expand all</button><button type="button" class="chip" id="collapse-all">Collapse to subsystems</button></span>
       </div>
       <div class="scroll"><table class="tree" id="tree"></table></div>
@@ -114,7 +184,10 @@
     <div class="panel">
       <div class="panel-head">
         <div class="filters" id="filters" role="group" aria-label="Filter tests"></div>
-        <input type="search" id="search" placeholder="Filter by test or instance" aria-label="Filter by test or instance">
+        <div class="filters">
+          <span class="filters" role="group" aria-label="Show tests as"><button type="button" class="chip" data-view="table">Table</button><button type="button" class="chip" data-view="heat">Heatmap</button></span>
+          <input type="search" id="search" placeholder="Filter by test, instance or error" aria-label="Filter by test, instance or error">
+        </div>
       </div>
       <div class="scroll" id="tests"></div>
       <button type="button" class="more" id="more" hidden></button>
@@ -131,40 +204,89 @@
   var D = JSON.parse(document.getElementById("socdash-data").textContent);
   var SVGNS = "http://www.w3.org/2000/svg";
   var byId = {}; D.nodes.forEach(function (n) { byId[n.id] = n; });
-  var root = byId.all;
   var N = D.runs.length, L = N - 1;
-  var sel = "all", filter = "all", query = "", limit = 150;
-  var O = D.owners, week = O ? O.weeks.length - 1 : 0, ownerFilter = null;
-  var expanded = {}; root.children.forEach(function (c) { expanded[c] = true; }); expanded.all = true;
+  var DATES = D.runs.map(function (r) { return new Date(r.date + "T00:00:00Z"); });
+  var O = D.owners, W = D.weeks;
+  var STATUS = { P: "PASS", F: "FAIL", T: "TIMEOUT", E: "ERROR" };
+  var MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+  var sel = "all", filter = "all", query = "", limit = 150, view = "table";
+  var V = L, C = L - 1, cmpChoice = "prev";
+  var week = W.length - 1, ownerFilter = null;
+  var expanded = { all: true }; byId.all.children.forEach(function (c) { expanded[c] = true; });
 
   function $(id) { return document.getElementById(id); }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
   function pct(x, d) { return x == null || isNaN(x) ? "–" : (100 * x).toFixed(d == null ? 1 : d) + "%"; }
-  function rate(n, i) { return n.total[i] ? n.pass[i] / n.total[i] : null; }
-  function shortDate(iso) { var p = iso.split("-"); return ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][+p[1] - 1] + " " + (+p[2]); }
+  function slug(p) { return p.replace(/[^A-Za-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "x"; }
+  function shortDate(iso) { var p = iso.split("-"); return MON[+p[1] - 1] + " " + (+p[2]); }
+  function dateOf(iso) { return new Date(iso + "T00:00:00Z"); }
+  function days(a, b) { return Math.round((b - a) / 864e5); }
   function el(parent, tag, attrs, text) { var e = document.createElementNS(SVGNS, tag); for (var k in attrs) e.setAttribute(k, attrs[k]); if (text != null) e.textContent = text; parent.appendChild(e); return e; }
+  function svg(w, h, label) { var s = document.createElementNS(SVGNS, "svg"); s.setAttribute("viewBox", "0 0 " + w + " " + h); s.setAttribute("class", "chart"); s.setAttribute("role", "img"); s.setAttribute("aria-label", label); return s; }
   function need() { return D.need == null ? 0.9 : D.need; }
   function rateClass(r) { return r == null ? "" : r >= need() ? "ok" : r >= need() - 0.05 ? "warn" : "bad"; }
-  // A module whose only instance carries the module's own name has no separate instance level.
+  function rate(n, i) { return n.total[i] ? n.pass[i] / n.total[i] : null; }
+  function failing(c) { return c === "F" || c === "T" || c === "E"; }
   function kids(n) { return n.children.filter(function (c) { var k = byId[c]; return !(k.level === "instance" && n.children.length === 1 && k.name === n.name); }); }
-  function inScope(t, n) { for (var i = 0; i < n.path.length; i++) if ([t.ss, t.mod, t.inst][i] !== n.path[i]) return false; return true; }
-  function testsIn(n) { return D.tests.filter(function (t) { return inScope(t, n); }); }
-  function passingNow(n) { return n.tp[L]; }
-  function failingNow(n) { return n.tf[L]; }
+  function testsIn(n) { return D.tests.filter(function (t) { return t.anc.indexOf(n.id) >= 0; }); }
+  function runLabel(i) { return D.runs[i].run + " · " + shortDate(D.runs[i].date); }
 
-  function spark(values, w, h) {
-    var v = values.filter(function (x) { return x != null; }); if (v.length < 2) return "";
-    var lo = Math.min.apply(null, v), hi = Math.max.apply(null, v); if (hi - lo < 1e-9) { lo -= 0.01; hi += 0.01; }
-    var pts = []; values.forEach(function (x, i) { if (x != null) pts.push([(i * (w - 6) / (values.length - 1) + 3).toFixed(1), (h - 3 - (x - lo) / (hi - lo) * (h - 6)).toFixed(1)]); });
-    var last = pts[pts.length - 1];
-    return "<svg viewBox=\"0 0 " + w + " " + h + "\" aria-hidden=\"true\"><path d=\"M" + pts.map(function (p) { return p.join(","); }).join("L") + "\" fill=\"none\" stroke=\"var(--accent)\" stroke-width=\"1.5\" stroke-linejoin=\"round\"/><circle cx=\"" + last[0] + "\" cy=\"" + last[1] + "\" r=\"2.4\" fill=\"var(--accent)\"/></svg>";
-  }
-  function progBar(n) {
-    var p = passingNow(n), f = failingNow(n), nr = n.not_run, tot = n.tests || 1;
-    return "<div class=\"stack\" title=\"" + p + " passing, " + f + " failing, " + nr + " not run\"><span class=\"s-passing\" style=\"width:" + (100 * p / tot).toFixed(2) + "%\"></span><span class=\"s-failing\" style=\"width:" + (100 * f / tot).toFixed(2) + "%\"></span><span class=\"s-notrun\" style=\"width:" + (100 * nr / tot).toFixed(2) + "%\"></span></div>";
+  // Each test's ancestors and first run, so per-node counts take one pass over the tests.
+  D.tests.forEach(function (t) {
+    t.anc = ["all"];
+    var acc = [];
+    [t.ss, t.mod, t.inst].forEach(function (p) { acc.push(slug(p)); t.anc.push(acc.join("--")); });
+    t.first = t.hist.search(/[PFTE]/);
+    t.sigAt = {}; t.fs.forEach(function (p) { t.sigAt[p[0]] = D.sigs[p[1]]; });
+  });
+
+  var FC_TEXT = { met: "Met", on_track: "On track", at_risk: "At risk", stalled: "Stalled", projected: "Projected", unknown: "No forecast" };
+  function fcPill(f, withDate, big) {
+    if (!f) return "";
+    var t = FC_TEXT[f.status] || f.status;
+    if (withDate && f.eta && f.status !== "met") t += " · " + shortDate(f.eta);
+    var tip = f.status === "met" ? "Last three runs average at or above " + pct(need(), 0)
+      : f.status === "stalled" ? "Pass rate is not improving" + (f.per_week != null ? " (" + (100 * f.per_week).toFixed(1) + " pts a week)" : "")
+      : f.eta ? "Trend reaches " + pct(need(), 0) + " around " + f.eta + (f.due ? "; due " + f.due : "") + (f.per_week != null ? " (+" + (100 * f.per_week).toFixed(1) + " pts a week)" : "")
+      : "Not enough runs to project";
+    return "<span class=\"fc " + f.status + "\"" + (big ? " style=\"font-size:.95rem;padding:4px 10px\"" : "") + " title=\"" + esc(tip) + "\">" + t + "</span>";
   }
 
-  /* ---------- header and breadcrumb ---------- */
+  /* Counts per node at run i, with new failures and fixes measured against run j. */
+  function countsAt(i, j) {
+    var m = {};
+    D.tests.forEach(function (t) {
+      if (t.first < 0 || t.first > i) return;  // the test did not exist yet at run i
+      var a = t.hist[i], b = j >= 0 && j !== i ? t.hist[j] : "-";
+      var never = t.hist.slice(0, i + 1).indexOf("P") < 0;
+      t.anc.forEach(function (id) {
+        var c = m[id] || (m[id] = { tests: 0, tp: 0, tf: 0, nr: 0, nw: 0, fx: 0, never: 0 });
+        c.tests++;
+        if (a === "P") c.tp++; else if (failing(a)) c.tf++; else c.nr++;
+        if (failing(a) && b === "P") c.nw++;
+        if (a === "P" && failing(b)) c.fx++;
+        if (never) c.never++;
+      });
+    });
+    return m;
+  }
+  function failDays(t, i) {
+    if (!failing(t.hist[i])) return null;
+    var f = i;
+    for (var j = i - 1; j >= 0; j--) { var c = t.hist[j]; if (c === "-") continue; if (c === "P") break; f = j; }
+    return days(DATES[f], DATES[i]);
+  }
+  function sinceRun(t, i) {
+    var c = t.hist[i]; if (c === "-") return null;
+    var f = i;
+    for (var j = i - 1; j >= 0; j--) { var d = t.hist[j]; if (d === "-") break; if ((d === "P") !== (c === "P")) break; f = j; }
+    return D.runs[f].run;
+  }
+  var COUNTS = {};
+  var EMPTY = { tests: 0, tp: 0, tf: 0, nr: 0, nw: 0, fx: 0, never: 0 };
+
+  /* ---------- header, controls, breadcrumb ---------- */
   function renderHeader() {
     var links = [];
     if (D.links.home) links.push("<a class=\"home\" href=\"" + esc(D.links.home) + "\">All projects</a>");
@@ -172,11 +294,11 @@
     $("links").innerHTML = links.join(" <span> / </span> ") + (links.length ? " <span> / </span> " : "") + "Regression";
     $("title").textContent = D.project + " regression";
     $("meta").innerHTML = "<span>Latest run <b class=\"mono\">" + esc(D.latest_run) + "</b></span><span><b>" + N + "</b> nightly runs from " + esc(D.runs[0].date) + "</span>" +
-      (D.milestone ? "<span>" + esc(D.milestone) + " needs <b>" + pct(need(), 0) + "</b> pass rate</span>" : "");
+      (D.milestone ? "<span>" + esc(D.milestone) + " needs <b>" + pct(need(), 0) + "</b> sim pass rate" + (D.due ? " by <b>" + esc(D.due) + "</b>" : "") + "</span>" : "");
+    $("viewing").innerHTML = V === L ? "" : "Showing an earlier run. <button type=\"button\" class=\"linkish\" data-latest>Back to latest</button>";
     var n = byId[sel], parts = [];
     for (var d = 0; d <= n.path.length; d++) {
-      var id = d === 0 ? "all" : n.path.slice(0, d).map(slug).join("--");
-      var node = byId[id];
+      var id = d === 0 ? "all" : n.path.slice(0, d).map(slug).join("--"), node = byId[id];
       if (!node) continue;
       if (d > 0 && node.level === "instance" && kids(byId[n.path.slice(0, d - 1).map(slug).join("--")]).length === 0) continue;
       parts.push(id === sel ? "<span class=\"here\">" + esc(node.name) + "</span> <span class=\"lvl\">" + node.level + "</span>"
@@ -184,218 +306,389 @@
     }
     $("crumbs").innerHTML = parts.join("<span class=\"sep\">›</span>");
   }
-  function slug(p) { return p.replace(/[^A-Za-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "x"; }
+  function renderControls() {
+    var opts = "";
+    for (var i = L; i >= 0; i--) opts += "<option value=\"" + i + "\"" + (i === V ? " selected" : "") + ">" + esc(runLabel(i)) + (i === L ? " (latest)" : "") + "</option>";
+    $("run-view").innerHTML = opts;
+    var c = "<option value=\"prev\"" + (cmpChoice === "prev" ? " selected" : "") + ">the run before</option>";
+    for (var k = L; k >= 0; k--) if (k !== V) c += "<option value=\"" + k + "\"" + (String(k) === cmpChoice ? " selected" : "") + ">" + esc(runLabel(k)) + "</option>";
+    $("run-cmp").innerHTML = c;
+  }
 
   /* ---------- KPIs ---------- */
+  function spark(values, w, h, mark) {
+    var v = values.filter(function (x) { return x != null; }); if (v.length < 2) return "";
+    var lo = Math.min.apply(null, v), hi = Math.max.apply(null, v); if (hi - lo < 1e-9) { lo -= 0.01; hi += 0.01; }
+    var pts = []; values.forEach(function (x, i) { if (x != null) pts.push([i * (w - 6) / (values.length - 1) + 3, h - 3 - (x - lo) / (hi - lo) * (h - 6), i]); });
+    var m = pts.filter(function (p) { return p[2] === mark; })[0] || pts[pts.length - 1];
+    return "<svg viewBox=\"0 0 " + w + " " + h + "\" aria-hidden=\"true\" preserveAspectRatio=\"none\"><path d=\"M" + pts.map(function (p) { return p[0].toFixed(1) + "," + p[1].toFixed(1); }).join("L") + "\" fill=\"none\" stroke=\"var(--accent)\" stroke-width=\"1.5\" stroke-linejoin=\"round\" vector-effect=\"non-scaling-stroke\"/><circle cx=\"" + m[0].toFixed(1) + "\" cy=\"" + m[1].toFixed(1) + "\" r=\"2.4\" fill=\"var(--accent)\"/></svg>";
+  }
   function renderKpis() {
-    var n = byId[sel], r = rate(n, L), pr = N > 1 ? rate(n, L - 1) : null, d = r != null && pr != null ? r - pr : null;
-    var tot = n.tests || 1;
+    var n = byId[sel], c = COUNTS[sel] || EMPTY;
+    var r = rate(n, V), pr = C >= 0 ? rate(n, C) : null, d = r != null && pr != null ? r - pr : null, tot = c.tests || 1;
+    var f = n.forecast;
     var items = [
-      { label: "Sim pass rate, latest run", value: pct(r), pill: r != null ? "<span class=\"pill " + rateClass(r) + "\">need " + pct(need(), 0) + "</span>" : "",
-        sub: n.pass[L] + " of " + n.total[L] + " sims" + (d != null ? " · <span class=\"" + (d >= 0 ? "up" : "down") + "\">" + (d >= 0 ? "▲ " : "▼ ") + Math.abs(100 * d).toFixed(1) + " pts</span>" : ""),
-        extra: "<div style=\"height:26px\">" + spark(n.total.map(function (_, i) { return rate(n, i); }), 160, 26).replace("<svg ", "<svg preserveAspectRatio=\"none\" style=\"width:100%;height:26px\" ") + "</div>" },
-      { label: "Tests passing", value: passingNow(n) + "<span class=\"muted\" style=\"font-size:1.1rem\"> / " + n.tests + "</span>",
-        sub: failingNow(n) + " failing, " + n.not_run + " not run",
-        extra: "<div class=\"bar\"><span class=\"s-passing\" style=\"width:" + (100 * passingNow(n) / tot) + "%\"></span><span class=\"s-failing\" style=\"width:" + (100 * failingNow(n) / tot) + "%\"></span><span class=\"s-notrun\" style=\"width:" + (100 * n.not_run / tot) + "%\"></span></div>" },
-      { label: "New failures", value: "<span class=\"" + (n.new_fail ? "down" : "") + "\">" + n.new_fail + "</span>", sub: "tests that passed in the previous run" },
-      { label: "Fixed", value: "<span class=\"" + (n.fixed ? "up" : "") + "\">" + n.fixed + "</span>", sub: "tests that failed in the previous run" },
-      { label: "Never passed", value: n.always_fail, sub: "tests with no passing run in " + N + " runs" }
+      { label: "Sim pass rate", value: pct(r), pill: r != null ? "<span class=\"pill " + rateClass(r) + "\">need " + pct(need(), 0) + "</span>" : "",
+        sub: n.pass[V] + " of " + n.total[V] + " sims" + (d != null ? " · <span class=\"" + (d >= 0 ? "up" : "down") + "\">" + (d >= 0 ? "▲ " : "▼ ") + Math.abs(100 * d).toFixed(1) + " pts</span>" : ""),
+        extra: "<div style=\"height:26px\">" + spark(n.total.map(function (_, i) { return rate(n, i); }), 160, 26, V).replace("<svg ", "<svg style=\"width:100%;height:26px\" ") + "</div>" },
+      { label: "Tests passing", value: c.tp + "<span class=\"muted\" style=\"font-size:1.1rem\"> / " + c.tests + "</span>", sub: c.tf + " failing, " + c.nr + " not run",
+        extra: "<div class=\"bar\"><span class=\"s-passing\" style=\"width:" + (100 * c.tp / tot) + "%\"></span><span class=\"s-failing\" style=\"width:" + (100 * c.tf / tot) + "%\"></span><span class=\"s-notrun\" style=\"width:" + (100 * c.nr / tot) + "%\"></span></div>" },
+      { label: "New failures", value: "<span class=\"" + (c.nw ? "down" : "") + "\">" + c.nw + "</span>", sub: "passed in " + (C >= 0 ? D.runs[C].run : "–") },
+      { label: "Fixed", value: "<span class=\"" + (c.fx ? "up" : "") + "\">" + c.fx + "</span>", sub: "failed in " + (C >= 0 ? D.runs[C].run : "–") },
+      { label: "Forecast to " + pct(need(), 0), value: fcPill(f, false, true),
+        sub: f.status === "met" ? "Last three runs average at or above the bar"
+          : f.eta ? "Trend reaches it around <b>" + shortDate(f.eta) + "</b>" + (D.due ? "; due " + shortDate(D.due) : "")
+          : f.status === "stalled" ? "Pass rate not improving over recent runs" : "Not enough runs yet" }
     ];
     $("kpis").innerHTML = items.map(function (k) {
-      return "<div class=\"kpi\"><span class=\"label\">" + k.label + "</span><div style=\"display:flex;align-items:baseline;gap:10px;flex-wrap:wrap\"><span class=\"value\">" + k.value + "</span>" + (k.pill || "") + "</div><span class=\"sub\">" + k.sub + "</span>" + (k.extra || "") + "</div>";
+      return "<div class=\"kpi\"><span class=\"label\">" + k.label + "</span><div style=\"display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-height:2.1rem\"><span class=\"value\">" + k.value + "</span>" + (k.pill || "") + "</div><span class=\"sub\">" + k.sub + "</span>" + (k.extra || "") + "</div>";
     }).join("");
   }
 
-  /* ---------- progress chart ---------- */
-  function renderTrend() {
-    var n = byId[sel], W = 640, H = 300, Lm = 40, R = 56, T = 12, s = document.createElementNS(SVGNS, "svg");
-    s.setAttribute("viewBox", "0 0 " + W + " " + H); s.setAttribute("class", "chart"); s.setAttribute("role", "img");
-    s.setAttribute("aria-label", "Pass rate and test counts per run for " + n.name);
-    var cw = (W - Lm - R) / N; function x(i) { return Lm + cw * (i + 0.5); }
-    var rates = n.total.map(function (_, i) { return rate(n, i); });
-    var vals = rates.filter(function (v) { return v != null; }).concat([need()]);
-    var lo = Math.max(0, Math.floor((Math.min.apply(null, vals) - 0.04) * 10) / 10), hi = 1, rb = 128;
-    function y(v) { return T + (hi - v) / (hi - lo) * (rb - T); }
-    for (var g = lo; g <= hi + 1e-9; g += 0.1) { el(s, "line", { x1: Lm, x2: W - R, y1: y(g), y2: y(g), "class": "grid-line" }); el(s, "text", { x: Lm - 6, y: y(g) + 4, "text-anchor": "end" }, Math.round(g * 100) + "%"); }
-    el(s, "line", { x1: Lm, x2: W - R, y1: y(need()), y2: y(need()), stroke: "var(--ink)", "stroke-dasharray": "4 3" });
-    el(s, "text", { x: W - R + 4, y: y(need()) + 4, style: "fill:var(--ink)" }, "need " + Math.round(need() * 100) + "%");
-    var pts = []; rates.forEach(function (v, i) { if (v != null) pts.push([x(i), y(v), i]); });
-    if (pts.length) {
-      el(s, "path", { d: "M" + pts[0][0] + "," + rb + "L" + pts.map(function (p) { return p[0] + "," + p[1]; }).join("L") + "L" + pts[pts.length - 1][0] + "," + rb + "Z", fill: "var(--accent)", "fill-opacity": "0.1" });
-      el(s, "path", { d: "M" + pts.map(function (p) { return p[0] + "," + p[1]; }).join("L"), fill: "none", stroke: "var(--accent)", "stroke-width": 2, "stroke-linejoin": "round" });
-      pts.forEach(function (p) { var c = el(s, "circle", { cx: p[0], cy: p[1], r: p[2] === L ? 4.5 : 2.4, fill: p[2] === L ? "var(--accent)" : "var(--surface)", stroke: "var(--accent)", "stroke-width": 1.4 }); el(c, "title", {}, D.runs[p[2]].run + ": " + pct(rates[p[2]]) + " (" + n.pass[p[2]] + "/" + n.total[p[2]] + " sims)"); });
-      var lp = pts[pts.length - 1], ly = lp[1] - 7;
-      if (Math.abs(ly - (y(need()) + 4)) < 13) ly = lp[1] <= y(need()) ? y(need()) - 10 : y(need()) + 17;
-      el(s, "text", { x: lp[0] + 8, y: ly, "class": "end-label" }, pct(rates[L]));
+  /* ---------- weekly digest ---------- */
+  function weekLabel(w) { var s = dateOf(w.start); s.setUTCDate(s.getUTCDate() + 1); return shortDate(s.toISOString().slice(0, 10)) + " – " + shortDate(w.end); }
+  function renderWeeks() {
+    var html = "<span class=\"label\">Week</span>" + W.map(function (w, i) { return "<button type=\"button\" class=\"chip\" data-week=\"" + i + "\" aria-pressed=\"" + (i === week) + "\">" + weekLabel(w) + "</button>"; }).join("");
+    Array.prototype.forEach.call(document.querySelectorAll(".weeks"), function (e) { e.innerHTML = html; });
+  }
+  function renderDigest() {
+    if (!W.length) { $("dg-nums").innerHTML = "<p class=\"empty\">No runs yet.</p>"; return; }
+    var w = W[week], s = w.s, e = w.e, first = s == null, n = byId[sel];
+    var startC = first ? {} : countsAt(s, -1), endC = countsAt(e, first ? -1 : s);
+    var a = startC[sel] || EMPTY, b = endC[sel] || EMPTY;
+    var added = 0, stuck = 0, olds = [];
+    testsIn(n).forEach(function (t) {
+      if (t.first >= 0 && t.first <= e && (first || t.first > s)) added++;
+      var age = failDays(t, e);
+      if (age != null) { olds.push({ t: t, age: age }); if (age >= D.stuck_days) stuck++; }
+    });
+    var dTp = b.tp - a.tp;
+    function cell(label, value, note, cls) { return "<div><span class=\"label\">" + label + "</span><b class=\"" + (cls || "") + "\">" + value + "</b><small>" + note + "</small></div>"; }
+    $("dg-nums").innerHTML = "<span class=\"listhead\">Week in numbers</span><div class=\"dnums\">" +
+      cell("Passing", (first ? "" : "<span class=\"muted\" style=\"font-size:1rem\">" + a.tp + " → </span>") + b.tp, first ? "first week of data" : "<span class=\"" + (dTp > 0 ? "up" : dTp < 0 ? "down" : "") + "\">" + (dTp >= 0 ? "+" : "−") + Math.abs(dTp) + " this week</span>") +
+      cell("Fixed", first ? "–" : b.fx, "failing at start", b.fx ? "up" : "") +
+      cell("New failures", first ? "–" : b.nw, "passing at start", b.nw ? "down" : "") +
+      cell("Added", added, "first ran this week") +
+      cell("Still failing", b.tf, "at week end", b.tf ? "down" : "") +
+      cell("Stuck", stuck, D.stuck_days + "+ days failing", stuck ? "down" : "") + "</div>";
+
+    var ch = kids(n), mv = ch.map(function (id) {
+      var x = endC[id] || EMPTY, y = startC[id] || EMPTY, node = byId[id];
+      var r1 = rate(node, e), r0 = first ? null : rate(node, s);
+      return { id: id, name: node.name, d: x.tp - y.tp, dr: r1 != null && r0 != null ? r1 - r0 : 0 };
+    });
+    var up = mv.filter(function (m) { return m.d > 0 || (m.d === 0 && m.dr > 0.005); }).sort(function (p, q) { return q.d - p.d || q.dr - p.dr; }).slice(0, 4);
+    var down = mv.filter(function (m) { return m.d < 0 || (m.d === 0 && m.dr < -0.005); }).sort(function (p, q) { return p.d - q.d || p.dr - q.dr; }).slice(0, 4);
+    function line(m) {
+      return "<div class=\"mover\"><span class=\"nm\"><button type=\"button\" data-node=\"" + m.id + "\">" + esc(m.name) + "</button></span><span class=\"num " + (m.d > 0 ? "up" : m.d < 0 ? "down" : "muted") + "\">" + (m.d >= 0 ? "+" : "−") + Math.abs(m.d) + " tests</span><span class=\"num muted\" style=\"font-size:.78rem\">" + (m.dr >= 0 ? "+" : "−") + Math.abs(100 * m.dr).toFixed(1) + " pts</span></div>";
     }
-    // tests passing / failing per run
-    var top = rb + 22, bh = 104, base = top + bh;
-    var maxT = Math.max.apply(null, n.tp.map(function (p, i) { return p + n.tf[i]; }).concat([1]));
-    var step = maxT <= 10 ? 2 : maxT <= 25 ? 5 : maxT <= 60 ? 10 : maxT <= 150 ? 25 : 50, tmax = Math.ceil(maxT / step) * step;
-    function yt(v) { return base - v / tmax * bh; }
-    for (var t = 0; t <= tmax; t += step) { el(s, "line", { x1: Lm, x2: W - R, y1: yt(t), y2: yt(t), "class": "grid-line" }); el(s, "text", { x: Lm - 6, y: yt(t) + 4, "text-anchor": "end" }, t); }
-    el(s, "text", { x: W - R + 4, y: top + 8 }, "tests");
-    var bw = Math.min(20, cw * 0.62);
-    for (var i = 0; i < N; i++) {
-      var p = n.tp[i], f = n.tf[i];
-      var r1 = el(s, "rect", { x: x(i) - bw / 2, y: yt(p), width: bw, height: base - yt(p), fill: "var(--pass)" });
-      el(r1, "title", {}, D.runs[i].run + ": " + p + " passing, " + f + " failing");
-      if (f) { var r2 = el(s, "rect", { x: x(i) - bw / 2, y: yt(p + f), width: bw, height: yt(p) - yt(p + f), fill: "var(--fail)" }); el(r2, "title", {}, D.runs[i].run + ": " + f + " failing"); }
-      if (N <= 16 || (L - i) % 2 === 0) el(s, "text", { x: x(i), y: base + 16, "text-anchor": "end", transform: "rotate(-40 " + x(i) + " " + (base + 16) + ")" }, shortDate(D.runs[i].date));
-    }
-    el(s, "text", { x: x(L) + bw / 2 + 4, y: yt(n.tp[L] + n.tf[L]) + 4, "class": "end-label" }, (n.tp[L] + n.tf[L]));
-    $("trend").innerHTML = ""; $("trend").appendChild(s);
-    var first = 0; while (first < L && n.total[first] === 0) first++;
-    var grow = (n.tp[L] + n.tf[L]) - (n.tp[first] + n.tf[first]);
-    $("prog-note").textContent = n.name + ": " + passingNow(n) + " of " + n.tests + " tests passing in " + D.latest_run +
-      (N > 1 ? ". Passing tests went from " + n.tp[first] + " to " + n.tp[L] + " since " + D.runs[first].run + (grow ? ", and " + Math.abs(grow) + " test" + (Math.abs(grow) === 1 ? " was" : "s were") + (grow > 0 ? " added" : " removed") : "") + "." : ".");
+    $("dg-movers").innerHTML = first ? "<span class=\"listhead\">Movers</span><p class=\"empty\">Movers appear from the second week of data.</p>"
+      : !ch.length ? "<span class=\"listhead\">Movers</span><p class=\"empty\">" + esc(n.name) + " has no parts below it to compare.</p>"
+      : "<span class=\"listhead\">Most improved</span>" + (up.length ? up.map(line).join("") : "<p class=\"empty\">Nothing improved this week.</p>") +
+        "<span class=\"listhead\">Slipped</span>" + (down.length ? down.map(line).join("") : "<p class=\"empty\">Nothing slipped this week.</p>");
+
+    olds.sort(function (p, q) { return q.age - p.age; });
+    $("dg-oldest").innerHTML = "<span class=\"listhead\">Longest failing at week end</span>" + (olds.length ? olds.slice(0, 6).map(function (o) {
+      return "<div class=\"mover\"><span class=\"nm\" title=\"" + esc(o.t.mod + " › " + o.t.inst) + "\">" + esc(o.t.test) + " <span class=\"muted\" style=\"font-size:.76rem\">" + esc(o.t.inst) + "</span></span><span class=\"num " + (o.age >= D.stuck_days ? "age-hot" : "") + "\">" + o.age + "d</span><span class=\"muted\" style=\"font-size:.76rem\">" + esc(o.t.o || "") + "</span></div>";
+    }).join("") : "<p class=\"empty\">Nothing failing at week end.</p>");
+    $("dg-note").textContent = n.name + ", " + weekLabel(w) + ": " + w.runs + " run" + (w.runs === 1 ? "" : "s") + (first ? "." : ", compared with " + D.runs[s].run + ", the last run before the week.");
   }
 
-  /* ---------- signatures ---------- */
-  function renderSigs() {
-    var groups = {};
+  /* ---------- charts ---------- */
+  function timeAxis() {
+    var start = DATES[0], end = DATES[L];
+    if (D.due) { var due = dateOf(D.due); if (due > end) end = due; }
+    var f = byId[sel].forecast;
+    if (f && f.eta) { var eta = dateOf(f.eta), cap = new Date(end.getTime() + 21 * 864e5); if (eta > end) end = eta < cap ? eta : cap; }
+    return { start: start, end: new Date(end.getTime() + 2 * 864e5) };
+  }
+  function dateTicks(s, x, ax, y0) {
+    var span = days(ax.start, ax.end), step = span <= 21 ? 3 : span <= 50 ? 7 : 14;
+    for (var d = 0; d <= span; d += step) {
+      var t = new Date(ax.start.getTime() + d * 864e5);
+      el(s, "line", { x1: x(t), x2: x(t), y1: y0, y2: y0 + 4, "class": "axis-strong" });
+      el(s, "text", { x: x(t), y: y0 + 16, "text-anchor": "middle" }, MON[t.getUTCMonth()] + " " + t.getUTCDate());
+    }
+  }
+  function dueMarker(s, x, top, bottom) {
+    if (!D.due) return;
+    var due = dateOf(D.due);
+    el(s, "line", { x1: x(due), x2: x(due), y1: top, y2: bottom, stroke: "var(--ink)", "stroke-dasharray": "3 3" });
+    el(s, "text", { x: x(due) - 4, y: top + 10, "text-anchor": "end", style: "fill:var(--ink)" }, (D.milestone || "Milestone") + " due");
+  }
+  function viewedGuide(s, x, top, bottom) {
+    if (V === L) return;
+    el(s, "line", { x1: x(DATES[V]), x2: x(DATES[V]), y1: top, y2: bottom, stroke: "var(--accent)", "stroke-width": 1.5, opacity: 0.6 });
+  }
+  function renderBurnup() {
+    var n = byId[sel], Wd = 560, H = 260, Lm = 40, R = 16, T = 14, B = 30, s = svg(Wd, H, "Burn-up for " + n.name);
+    var ax = timeAxis();
+    function x(d) { return Lm + (d - ax.start) / (ax.end - ax.start) * (Wd - Lm - R); }
+    var runTot = n.tp.map(function (p, i) { return p + n.tf[i]; });
+    var due = D.due ? dateOf(D.due) : null, proj = null;
+    if (n.burn != null && due && due > DATES[L]) proj = Math.min(runTot[L], Math.max(0, n.tp[L] + n.burn * days(DATES[L], due)));
+    var max = Math.max.apply(null, runTot.concat([1]));
+    var step = max <= 10 ? 2 : max <= 25 ? 5 : max <= 60 ? 10 : max <= 150 ? 25 : max <= 400 ? 50 : 100, top = Math.ceil(max / step) * step;
+    function y(v) { return T + (1 - v / top) * (H - T - B); }
+    for (var g = 0; g <= top; g += step) { el(s, "line", { x1: Lm, x2: Wd - R, y1: y(g), y2: y(g), "class": "grid-line" }); el(s, "text", { x: Lm - 6, y: y(g) + 4, "text-anchor": "end" }, g); }
+    dateTicks(s, x, ax, H - B);
+    var ran = []; n.total.forEach(function (t, i) { if (t) ran.push(i); });
+    function path(arr) { return ran.map(function (i, k) { return (k ? "L" : "M") + x(DATES[i]).toFixed(1) + "," + y(arr[i]).toFixed(1); }).join(""); }
+    if (ran.length) {
+      el(s, "path", { d: path(n.tp) + "L" + x(DATES[ran[ran.length - 1]]).toFixed(1) + "," + y(0) + "L" + x(DATES[ran[0]]).toFixed(1) + "," + y(0) + "Z", fill: "var(--pass)", "fill-opacity": "0.12" });
+      el(s, "path", { d: path(runTot), fill: "none", stroke: "var(--muted)", "stroke-width": 2 });
+      el(s, "path", { d: path(n.tp), fill: "none", stroke: "var(--pass)", "stroke-width": 2.2 });
+    }
+    if (proj != null) {
+      el(s, "path", { d: "M" + x(DATES[L]) + "," + y(n.tp[L]) + "L" + x(due) + "," + y(proj), fill: "none", stroke: "var(--pass)", "stroke-width": 2, "stroke-dasharray": "5 4", opacity: 0.7 });
+      el(s, "circle", { cx: x(due), cy: y(proj), r: 3.5, fill: "var(--surface)", stroke: "var(--pass)", "stroke-width": 1.5 });
+      el(s, "text", { x: x(due) - 6, y: y(proj) + 16, "text-anchor": "end", "class": "end-label" }, "~" + Math.round(proj) + " of " + runTot[L]);
+    }
+    dueMarker(s, x, T, H - B);
+    viewedGuide(s, x, T, H - B);
+    el(s, "circle", { cx: x(DATES[V]), cy: y(n.tp[V]), r: 4, fill: "var(--pass)" });
+    el(s, "text", { x: x(DATES[L]) + 6, y: y(runTot[L]) - 6, "class": "end-label" }, runTot[L] + " run");
+    $("burnup").innerHTML = ""; $("burnup").appendChild(s);
+    var gap = runTot[L] - n.tp[L];
+    $("prog-note").textContent = n.name + ": " + n.tp[L] + " of " + runTot[L] + " tests passing in the latest run, " + gap + " to go." +
+      (n.burn != null ? " Recent pace " + (n.burn >= 0 ? "+" : "−") + Math.abs(n.burn * 7).toFixed(1) + " passing tests a week" : "") +
+      (proj != null ? ", heading for about " + Math.round(proj) + " passing by " + shortDate(D.due) + "." : ".");
+  }
+  function renderRateChart() {
+    var n = byId[sel], Wd = 560, H = 260, Lm = 40, R = 16, T = 14, B = 30, s = svg(Wd, H, "Pass rate and forecast for " + n.name);
+    var ax = timeAxis(), f = n.forecast;
+    function x(d) { return Lm + (d - ax.start) / (ax.end - ax.start) * (Wd - Lm - R); }
+    var rates = n.total.map(function (_, i) { return rate(n, i); });
+    var vals = rates.filter(function (v) { return v != null; }).concat([need()]);
+    var lo = Math.max(0, Math.floor((Math.min.apply(null, vals) - 0.04) * 10) / 10), hi = 1;
+    function y(v) { return T + (hi - v) / (hi - lo) * (H - T - B); }
+    for (var g = lo; g <= hi + 1e-9; g += 0.1) { el(s, "line", { x1: Lm, x2: Wd - R, y1: y(g), y2: y(g), "class": "grid-line" }); el(s, "text", { x: Lm - 6, y: y(g) + 4, "text-anchor": "end" }, Math.round(g * 100) + "%"); }
+    dateTicks(s, x, ax, H - B);
+    el(s, "line", { x1: Lm, x2: Wd - R, y1: y(need()), y2: y(need()), stroke: "var(--ink)", "stroke-dasharray": "4 3" });
+    el(s, "text", { x: Lm + 4, y: y(need()) - 5, style: "fill:var(--ink)" }, "need " + Math.round(need() * 100) + "%");
+    var pts = []; rates.forEach(function (v, i) { if (v != null) pts.push([x(DATES[i]), y(v), i]); });
+    if (pts.length) {
+      el(s, "path", { d: "M" + pts.map(function (p) { return p[0].toFixed(1) + "," + p[1].toFixed(1); }).join("L"), fill: "none", stroke: "var(--accent)", "stroke-width": 2, "stroke-linejoin": "round" });
+      pts.forEach(function (p) { var c = el(s, "circle", { cx: p[0], cy: p[1], r: p[2] === V ? 4.5 : 2.2, fill: p[2] === V ? "var(--accent)" : "var(--surface)", stroke: "var(--accent)", "stroke-width": 1.3 }); el(c, "title", {}, D.runs[p[2]].run + ": " + pct(rates[p[2]]) + " (" + n.pass[p[2]] + "/" + n.total[p[2]] + " sims)"); });
+      var lp = pts[pts.length - 1];
+      if (f && f.eta && (f.status === "on_track" || f.status === "at_risk" || f.status === "projected")) {
+        var etaX = x(dateOf(f.eta)), ex = Math.min(etaX, Wd - R);
+        var ey = etaX <= Wd - R ? y(need()) : lp[1] + (y(need()) - lp[1]) * (ex - lp[0]) / (etaX - lp[0]);
+        var col = f.status === "at_risk" ? "var(--fail)" : "var(--accent)";
+        el(s, "path", { d: "M" + lp[0] + "," + lp[1] + "L" + ex + "," + ey, stroke: col, "stroke-width": 2, "stroke-dasharray": "5 4", fill: "none", opacity: 0.75 });
+        el(s, "text", { x: ex - 4, y: ey + 16, "text-anchor": "end", "class": "end-label" }, etaX <= Wd - R ? "~" + shortDate(f.eta) : "~" + shortDate(f.eta) + " →");
+      }
+    }
+    dueMarker(s, x, T, H - B);
+    viewedGuide(s, x, T, H - B);
+    $("ratechart").innerHTML = ""; $("ratechart").appendChild(s);
+  }
+
+  /* ---------- failures ---------- */
+  function renderFailures() {
+    var groups = {}, ages = [0, 0, 0, 0, 0], buckets = ["0–1 days", "2–3 days", "4–7 days", "8–14 days", "15+ days"], total = 0, nNew = 0;
     testsIn(byId[sel]).forEach(function (t) {
-      if (t.status === "PASS" || t.status === "NOT RUN") return;
-      var g = groups[t.sig] || (groups[t.sig] = { sig: t.sig, tests: [], status: t.status, fresh: 0 });
-      g.tests.push(t); if (t.new) g.fresh++;
+      if (!failing(t.hist[V])) return;
+      total++;
+      var isNew = C >= 0 && t.hist[C] === "P"; if (isNew) nNew++;
+      var sg = t.sigAt[V] || "(no signature)";
+      var g = groups[sg] || (groups[sg] = { sig: sg, tests: [], status: STATUS[t.hist[V]], fresh: 0 });
+      g.tests.push(t); if (isNew) g.fresh++;
+      var a = failDays(t, V); ages[a <= 1 ? 0 : a <= 3 ? 1 : a <= 7 ? 2 : a <= 14 ? 3 : 4]++;
     });
     var list = Object.keys(groups).map(function (k) { return groups[k]; }).sort(function (a, b) { return b.tests.length - a.tests.length || (a.sig < b.sig ? -1 : 1); });
-    if (!list.length) { $("sigs").innerHTML = "<p class=\"empty\">No failing tests here in the latest run.</p>"; return; }
-    var h = "<table><thead><tr><th>Signature</th><th class=\"r\">Tests</th></tr></thead><tbody>";
-    list.forEach(function (g) {
-      var where = {}; g.tests.forEach(function (t) { where[t.inst] = 1; });
-      var inst = Object.keys(where);
-      h += "<tr><td><div class=\"sig\">" + esc(g.sig) + "</div><div style=\"margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;align-items:center\"><span class=\"pill " + (g.status === "TIMEOUT" ? "warn" : "bad") + "\">" + g.status.toLowerCase() + "</span>" +
-        (g.fresh ? "<span class=\"tag-new\" style=\"margin:0\">" + g.fresh + " new</span>" : "") +
-        "<span class=\"where\">" + inst.slice(0, 4).map(esc).join(", ") + (inst.length > 4 ? " +" + (inst.length - 4) : "") + "</span></div></td><td class=\"r\">" + g.tests.length + "</td></tr>";
+    if (!list.length) $("sigs").innerHTML = "<p class=\"empty\">No failing tests here in " + esc(D.runs[V].run) + ".</p>";
+    else {
+      var h = "<table><thead><tr><th>Signature</th><th class=\"r\">Tests</th></tr></thead><tbody>";
+      list.forEach(function (g) {
+        var where = {}; g.tests.forEach(function (t) { where[t.inst] = 1; }); var inst = Object.keys(where);
+        h += "<tr><td><div class=\"sig\">" + esc(g.sig) + "</div><div style=\"margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;align-items:center\"><span class=\"pill " + (g.status === "TIMEOUT" ? "warn" : "bad") + "\">" + g.status.toLowerCase() + "</span>" +
+          (g.fresh ? "<span class=\"tag-new\" style=\"margin:0\">" + g.fresh + " new</span>" : "") + "<span class=\"where\">" + inst.slice(0, 4).map(esc).join(", ") + (inst.length > 4 ? " +" + (inst.length - 4) : "") + "</span></div></td><td class=\"r\">" + g.tests.length + "</td></tr>";
+      });
+      $("sigs").innerHTML = h + "</tbody></table>";
+    }
+    var Wd = 420, H = 200, Lm = 30, R = 10, T = 18, B = 28, s = svg(Wd, H, "Failing tests by how long they have been failing");
+    var max = Math.max.apply(null, ages.concat([1])), step = max <= 5 ? 1 : max <= 12 ? 2 : 5, top = Math.ceil(max / step) * step;
+    function y(v) { return T + (1 - v / top) * (H - T - B); }
+    for (var g = 0; g <= top; g += step) { el(s, "line", { x1: Lm, x2: Wd - R, y1: y(g), y2: y(g), "class": "grid-line" }); el(s, "text", { x: Lm - 6, y: y(g) + 4, "text-anchor": "end" }, g); }
+    var bw = (Wd - Lm - R) / 5;
+    ages.forEach(function (v, i) {
+      var color = i >= 3 ? "var(--fail)" : i === 2 ? "var(--warn)" : "var(--accent)";
+      var r = el(s, "rect", { x: Lm + i * bw + bw * 0.18, y: y(v), width: bw * 0.64, height: y(0) - y(v), fill: color }); el(r, "title", {}, v + " tests failing " + buckets[i]);
+      if (v) el(s, "text", { x: Lm + i * bw + bw / 2, y: y(v) - 5, "text-anchor": "middle", "class": "end-label" }, v);
+      el(s, "text", { x: Lm + i * bw + bw / 2, y: H - 9, "text-anchor": "middle" }, buckets[i]);
     });
-    $("sigs").innerHTML = h + "</tbody></table>";
+    $("ages").innerHTML = ""; $("ages").appendChild(s);
+    $("fail-note").textContent = total + " failing test" + (total === 1 ? "" : "s") + " in " + byId[sel].name + " at " + D.runs[V].run + (C >= 0 ? ", " + nNew + " of them passing in " + D.runs[C].run : "") + ". Days count from the first failing run of the current streak.";
   }
 
   /* ---------- owners ---------- */
-  function weekLabel(w) { var s = new Date(w.start + "T00:00:00Z"); s.setUTCDate(s.getUTCDate() + 1); return shortDate(s.toISOString().slice(0, 10)) + " – " + shortDate(w.end); }
   function renderOwners() {
-    if (!O || !O.weeks.length) { $("owners-band").hidden = true; return; }
+    if (!O || !W.length) { $("owners-band").hidden = true; return; }
     $("owners-band").hidden = false;
-    $("weeks").innerHTML = "<span class=\"label\">Week</span>" + O.weeks.map(function (w, i) {
-      return "<button type=\"button\" class=\"chip wk-btn\" data-week=\"" + i + "\" aria-pressed=\"" + (i === week) + "\">" + weekLabel(w) + "</button>";
-    }).join("");
-    var wk = O.weeks[week], first = !wk.start_run;
-    var h = "<thead><tr><th>Owner</th><th>Tests passing, start → end</th><th class=\"r\">New fails</th><th class=\"r\">Fixed</th><th class=\"r\">Added</th><th>Sim pass rate this week</th><th class=\"r\">Bugs opened / closed</th><th class=\"r\">Bugs open at end</th><th>Passing by week</th><th></th></tr></thead><tbody>";
+    var wk = W[week], first = wk.s == null;
+    var h = "<thead><tr><th>Owner</th><th>Tests passing, start → end</th><th>Weekly target</th><th class=\"r\">New fails</th><th class=\"r\">Fixed</th><th class=\"r\">Added</th><th>Longest failing</th><th>Sim pass rate</th><th>Functional coverage</th><th class=\"r\">Bugs opened / closed / open</th><th class=\"r\">Median days to fix</th><th>Forecast</th><th>By week</th><th></th></tr></thead><tbody>";
     O.list.forEach(function (o) {
       var x = o.weeks[week], px = week > 0 ? o.weeks[week - 1] : null;
       var d = x.tp_e - x.tp_s, r = x.sims ? x.sims_pass / x.sims : null, pr = px && px.sims ? px.sims_pass / px.sims : null;
       var dr = r != null && pr != null ? r - pr : null, tot = Math.max(1, x.ran_e);
-      var maxW = Math.max.apply(null, o.weeks.map(function (y) { return y.tp_e; }).concat([1]));
+      var maxW = Math.max.apply(null, o.weeks.map(function (y) { return Math.max(y.tp_e, y.target || 0); }).concat([1]));
+      var tgt = x.target == null ? "<span class=\"muted\">–</span>" : "<span class=\"pill " + (x.tp_e >= x.target ? "ok" : x.tp_e >= x.target - 2 ? "warn" : "bad") + "\">" + x.tp_e + " / " + x.target + "</span><div class=\"small\">" + (x.tp_e >= x.target ? "met" : (x.target - x.tp_e) + " short") + "</div>";
+      var cov = x.cov_e == null ? "<span class=\"muted\" title=\"Coverage is per module; this owner has no whole module\">–</span>" : "<span class=\"num\">" + (x.cov_s == null ? "" : x.cov_s.toFixed(1) + " → ") + "<b>" + x.cov_e.toFixed(1) + "%</b></span>" + (x.cov_s == null ? "" : "<div class=\"small " + (x.cov_e >= x.cov_s ? "up" : "down") + "\">" + (x.cov_e >= x.cov_s ? "+" : "−") + Math.abs(x.cov_e - x.cov_s).toFixed(1) + " pts</div>");
       h += "<tr" + (ownerFilter === o.owner ? " class=\"on\"" : "") + "><td><div class=\"who\">" + esc(o.owner) + "</div><div class=\"scopes\">" + (o.scopes.length ? o.scopes.map(esc).join(", ") : "not in owners.csv") + "</div></td>" +
         "<td><div class=\"moved\">" + (first ? "<span class=\"muted\">first week</span>" : "<span class=\"muted\">" + x.tp_s + "</span> →") + " <b>" + x.tp_e + "</b><span class=\"muted\">/ " + x.ran_e + "</span>" +
         (first ? "" : " <span class=\"" + (d > 0 ? "up" : d < 0 ? "down" : "count0") + "\">" + (d > 0 ? "+" : d < 0 ? "−" : "±") + Math.abs(d) + "</span>") + "</div>" +
         "<div class=\"stack\" title=\"" + x.tp_e + " passing, " + x.fail_e + " failing at week end\"><span class=\"s-passing\" style=\"width:" + (100 * x.tp_e / tot) + "%\"></span><span class=\"s-failing\" style=\"width:" + (100 * x.fail_e / tot) + "%\"></span></div></td>" +
+        "<td>" + tgt + "</td>" +
         "<td class=\"r" + (x.new_fail ? " down" : " count0") + "\">" + x.new_fail + "</td>" +
         "<td class=\"r" + (x.fixed ? " up" : " count0") + "\">" + x.fixed + "</td>" +
         "<td class=\"r" + (x.added ? "" : " count0") + "\">" + x.added + "</td>" +
-        "<td>" + (r == null ? "–" : "<span class=\"pill " + rateClass(r) + "\">" + pct(r) + "</span>" + (dr != null ? " <span class=\"" + (dr >= 0 ? "up" : "down") + "\" style=\"font-size:.8rem\">" + (dr >= 0 ? "+" : "−") + Math.abs(100 * dr).toFixed(1) + "</span>" : "") + "<div class=\"small muted\" style=\"font-size:.74rem\">" + x.sims_pass + " of " + x.sims + " sims</div>") + "</td>" +
-        "<td class=\"r num\">" + x.bug_opened + " / " + x.bug_closed + "</td>" +
-        "<td class=\"r num\">" + x.bug_unresolved + "</td>" +
-        "<td><div class=\"weekbars\" aria-label=\"Tests passing at the end of each week\">" + o.weeks.map(function (y, i) {
-          return "<span class=\"" + (i === week ? "cur" : "") + "\" style=\"height:" + Math.max(2, 30 * y.tp_e / maxW).toFixed(1) + "px\" title=\"" + weekLabel(O.weeks[i]) + ": " + y.tp_e + " passing\"></span>";
+        "<td>" + (x.oldest ? "<span class=\"num " + (x.oldest.days >= D.stuck_days ? "age-hot" : "") + "\">" + x.oldest.days + "d</span> <span class=\"mono\" style=\"font-size:.78rem\">" + esc(x.oldest.test) + "</span><div class=\"small\">" + esc(x.oldest.where) + (x.stuck ? " · " + x.stuck + " stuck" : "") + "</div>" : "<span class=\"muted\">none</span>") + "</td>" +
+        "<td>" + (r == null ? "–" : "<span class=\"pill " + rateClass(r) + "\">" + pct(r) + "</span>" + (dr != null ? " <span class=\"" + (dr >= 0 ? "up" : "down") + "\" style=\"font-size:.8rem\">" + (dr >= 0 ? "+" : "−") + Math.abs(100 * dr).toFixed(1) + "</span>" : "") + "<div class=\"small\">" + x.sims_pass + " of " + x.sims + " sims</div>") + "</td>" +
+        "<td>" + cov + "</td>" +
+        "<td class=\"r num\">" + x.bug_opened + " / " + x.bug_closed + " / " + x.bug_unresolved + "</td>" +
+        "<td class=\"r num\">" + (x.fix_median == null ? "<span class=\"muted\">–</span>" : x.fix_median + "d") + "</td>" +
+        "<td>" + fcPill(o.forecast, true) + "</td>" +
+        "<td><div class=\"weekbars\">" + o.weeks.map(function (y, i) {
+          var bh = Math.max(2, 32 * y.tp_e / maxW);
+          return "<span class=\"" + (i === week ? "cur" : "") + "\" style=\"height:" + bh.toFixed(1) + "px\" title=\"" + weekLabel(W[i]) + ": " + y.tp_e + " passing" + (y.target != null ? ", target " + y.target : "") + "\">" +
+            (y.target != null ? "<i style=\"bottom:" + (32 * y.target / maxW - 1).toFixed(1) + "px\"></i>" : "") + "</span>";
         }).join("") + "</div></td>" +
         "<td><button type=\"button\" class=\"who-btn\" data-owner=\"" + esc(o.owner) + "\">" + (ownerFilter === o.owner ? "Showing tests" : "Show tests") + "</button></td></tr>";
     });
     $("owners").innerHTML = h + "</tbody>";
-    var tp = 0, ts = 0, nf = 0, fx = 0;
-    O.list.forEach(function (o) { var x = o.weeks[week]; tp += x.tp_e; ts += x.tp_s; nf += x.new_fail; fx += x.fixed; });
-    $("own-note").textContent = "Week " + weekLabel(wk) + ", " + wk.runs + " run" + (wk.runs === 1 ? "" : "s") + (first ? "" : " after " + wk.start_run) + ". " +
-      (first ? tp + " tests passing at week end." : "Tests passing went from " + ts + " to " + tp + "; " + nf + " new failure" + (nf === 1 ? "" : "s") + ", " + fx + " fixed.");
+    var tp = 0, ts = 0, met = 0, withT = 0;
+    O.list.forEach(function (o) { var x = o.weeks[week]; tp += x.tp_e; ts += x.tp_s; if (x.target != null) { withT++; if (x.tp_e >= x.target) met++; } });
+    $("own-note").textContent = weekLabel(wk) + ". " + (first ? tp + " tests passing at week end." : "Tests passing went from " + ts + " to " + tp + ".") + (withT ? " " + met + " of " + withT + " owners met their target." : "");
   }
 
   /* ---------- tree ---------- */
+  function progBar(c) {
+    var tot = c.tests || 1;
+    return "<div class=\"stack\" title=\"" + c.tp + " passing, " + c.tf + " failing, " + c.nr + " not run\"><span class=\"s-passing\" style=\"width:" + (100 * c.tp / tot).toFixed(2) + "%\"></span><span class=\"s-failing\" style=\"width:" + (100 * c.tf / tot).toFixed(2) + "%\"></span><span class=\"s-notrun\" style=\"width:" + (100 * c.nr / tot).toFixed(2) + "%\"></span></div>";
+  }
   function renderTree() {
-    var h = "<thead><tr><th>Name</th><th>Tests passing</th><th>Sim pass rate</th><th class=\"r\">Change</th><th>Trend</th><th class=\"r\">New fails</th><th class=\"r\">Fixed</th><th class=\"r\">Fail / timeout / error sims</th>" + (O ? "<th>Owner</th>" : "") + "</tr></thead><tbody>";
+    var h = "<thead><tr><th>Name</th><th>Tests passing</th><th>Sim pass rate</th><th class=\"r\">Change</th><th>Trend</th><th class=\"r\">New fails</th><th class=\"r\">Fixed</th><th>Forecast</th>" + (O ? "<th>Owner</th>" : "") + "</tr></thead><tbody>";
     function row(id, depth) {
-      var n = byId[id], ch = kids(n), r = rate(n, L), pr = N > 1 ? rate(n, L - 1) : null, d = r != null && pr != null ? r - pr : null;
-      var lat = n.latest;
+      var n = byId[id], ch = kids(n), c = COUNTS[id] || EMPTY;
+      var r = rate(n, V), pr = C >= 0 ? rate(n, C) : null, d = r != null && pr != null ? r - pr : null;
       h += "<tr data-level=\"" + n.level + "\"" + (id === sel ? " class=\"sel\" aria-current=\"true\"" : "") + ">" +
         "<td><div class=\"name\" style=\"padding-left:" + (depth * 20) + "px\">" +
         (ch.length ? "<button type=\"button\" class=\"tog\" data-toggle=\"" + id + "\" aria-expanded=\"" + !!expanded[id] + "\" aria-label=\"" + (expanded[id] ? "Collapse " : "Expand ") + esc(n.name) + "\">" + (expanded[id] ? "−" : "+") + "</button>" : "<span class=\"tog-space\"></span>") +
         "<button type=\"button\" class=\"pick\" data-node=\"" + id + "\">" + esc(n.name) + "</button><span class=\"lvl\">" + n.level + "</span></div></td>" +
-        "<td><div class=\"prog\">" + progBar(n) + "<span class=\"num\">" + passingNow(n) + "<span class=\"muted\">/" + n.tests + "</span></span></div></td>" +
+        "<td><div class=\"prog\">" + progBar(c) + "<span class=\"num\">" + c.tp + "<span class=\"muted\">/" + c.tests + "</span></span></div></td>" +
         "<td><span class=\"pill " + rateClass(r) + "\">" + pct(r) + "</span></td>" +
         "<td class=\"r " + (d == null ? "" : d > 0 ? "up" : d < 0 ? "down" : "count0") + "\">" + (d == null ? "–" : (d >= 0 ? "+" : "−") + Math.abs(100 * d).toFixed(1)) + "</td>" +
-        "<td>" + spark(n.total.map(function (_, i) { return rate(n, i); }), 90, 22) + "</td>" +
-        "<td class=\"r" + (n.new_fail ? " down" : " count0") + "\">" + n.new_fail + "</td>" +
-        "<td class=\"r" + (n.fixed ? " up" : " count0") + "\">" + n.fixed + "</td>" +
-        "<td class=\"r num\">" + lat.fail + " / " + lat.timeout + " / " + lat.error + "</td>" +
+        "<td>" + spark(n.total.map(function (_, i) { return rate(n, i); }), 90, 22, V) + "</td>" +
+        "<td class=\"r" + (c.nw ? " down" : " count0") + "\">" + c.nw + "</td>" +
+        "<td class=\"r" + (c.fx ? " up" : " count0") + "\">" + c.fx + "</td>" +
+        "<td>" + fcPill(n.forecast, true) + "</td>" +
         (O ? "<td class=\"own\">" + (n.owners.length <= 2 ? n.owners.map(esc).join(", ") : n.owners.length + " owners") + "</td>" : "") + "</tr>";
-      if (expanded[id]) ch.forEach(function (c) { row(c, depth + 1); });
+      if (expanded[id]) ch.forEach(function (k) { row(k, depth + 1); });
     }
     row("all", 0);
     $("tree").innerHTML = h + "</tbody>";
   }
 
   /* ---------- tests ---------- */
-  var FILTERS = [["all", "All"], ["failing", "Failing"], ["new", "New failures"], ["fixed", "Fixed"], ["flaky", "Flipping"], ["notrun", "Not run"]];
-  function matches(t) {
-    if (ownerFilter && t.o !== ownerFilter) return false;
-    if (filter === "failing" && (t.status === "PASS" || t.status === "NOT RUN")) return false;
-    if (filter === "new" && !t.new) return false;
-    if (filter === "fixed" && !t.fixed) return false;
-    if (filter === "flaky" && t.flips < 2) return false;
-    if (filter === "notrun" && t.status !== "NOT RUN") return false;
-    if (query) { var q = query.toLowerCase(); if ((t.test + " " + t.inst + " " + t.mod + " " + t.ss + " " + t.sig).toLowerCase().indexOf(q) < 0) return false; }
+  var FILTERS = [["all", "All"], ["failing", "Failing"], ["new", "New failures"], ["fixed", "Fixed"], ["stuck", "Stuck"], ["flaky", "Flipping"], ["notrun", "Not run"]];
+  function flips(t) { var f = 0, prev = null; for (var i = Math.max(0, V - D.history + 1); i <= V; i++) { var c = t.hist[i]; if (c === "-") continue; var p = c === "P"; if (prev !== null && p !== prev) f++; prev = p; } return f; }
+  function info(t) {
+    var a = t.hist[V], b = C >= 0 ? t.hist[C] : "-";
+    return { a: a, isNew: failing(a) && b === "P", isFixed: a === "P" && failing(b), age: failDays(t, V), flips: flips(t), exists: t.first >= 0 && t.first <= V };
+  }
+  function matches(t, x) {
+    if (filter === "failing" && !failing(x.a)) return false;
+    if (filter === "new" && !x.isNew) return false;
+    if (filter === "fixed" && !x.isFixed) return false;
+    if (filter === "stuck" && !(x.age != null && x.age >= D.stuck_days)) return false;
+    if (filter === "flaky" && x.flips < 2) return false;
+    if (filter === "notrun" && x.a !== "-") return false;
+    if (query) { var q = query.toLowerCase(); if ((t.test + " " + t.inst + " " + t.mod + " " + t.ss + " " + (t.sigAt[V] || "") + " " + t.o).toLowerCase().indexOf(q) < 0) return false; }
     return true;
   }
-  function rank(t) { return t.new ? 0 : t.status === "PASS" ? (t.fixed ? 3 : 4) : t.status === "NOT RUN" ? 5 : 1; }
-  function renderFilters() {
-    var all = testsIn(byId[sel]).filter(function (t) { return !ownerFilter || t.o === ownerFilter; });
-    var counts = { all: all.length, failing: 0, new: 0, fixed: 0, flaky: 0, notrun: 0 };
-    all.forEach(function (t) { if (t.status !== "PASS" && t.status !== "NOT RUN") counts.failing++; if (t.new) counts.new++; if (t.fixed) counts.fixed++; if (t.flips >= 2) counts.flaky++; if (t.status === "NOT RUN") counts.notrun++; });
-    $("filters").innerHTML = (ownerFilter ? "<button type=\"button\" class=\"chip\" data-clear-owner aria-label=\"Stop filtering by owner\" aria-pressed=\"true\">Owner: " + esc(ownerFilter) + " ✕</button>" : "") + FILTERS.map(function (f) { return "<button type=\"button\" class=\"chip\" data-filter=\"" + f[0] + "\" aria-pressed=\"" + (filter === f[0]) + "\">" + f[1] + " <span class=\"muted\">" + counts[f[0]] + "</span></button>"; }).join("");
+  function scoped() {
+    return testsIn(byId[sel]).map(function (t) { return { t: t, x: info(t) }; }).filter(function (r) { return r.x.exists && (!ownerFilter || r.t.o === ownerFilter); });
   }
+  function renderFilters() {
+    var all = scoped(), counts = { all: all.length, failing: 0, new: 0, fixed: 0, stuck: 0, flaky: 0, notrun: 0 };
+    all.forEach(function (r) { var x = r.x; if (failing(x.a)) counts.failing++; if (x.isNew) counts.new++; if (x.isFixed) counts.fixed++; if (x.age != null && x.age >= D.stuck_days) counts.stuck++; if (x.flips >= 2) counts.flaky++; if (x.a === "-") counts.notrun++; });
+    $("filters").innerHTML = (ownerFilter ? "<button type=\"button\" class=\"chip\" data-clear-owner aria-label=\"Stop filtering by owner\" aria-pressed=\"true\">Owner: " + esc(ownerFilter) + " ✕</button>" : "") +
+      FILTERS.map(function (f) { return "<button type=\"button\" class=\"chip\" data-filter=\"" + f[0] + "\" aria-pressed=\"" + (filter === f[0]) + "\"" + (f[0] === "stuck" ? " title=\"Failing for " + D.stuck_days + " days or more\"" : f[0] === "flaky" ? " title=\"Changed between pass and fail at least twice in the last " + D.history + " runs\"" : "") + ">" + f[1] + " <span class=\"muted\">" + counts[f[0]] + "</span></button>"; }).join("");
+    Array.prototype.forEach.call(document.querySelectorAll("[data-view]"), function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-view") === view)); });
+  }
+  function rank(r) { var x = r.x; return x.isNew ? 0 : failing(x.a) ? 1 : x.a === "-" ? 5 : x.isFixed ? 3 : 4; }
   function renderTests() {
     var n = byId[sel], depth = n.path.length;
-    var rows = testsIn(n).filter(matches).sort(function (a, b) { return rank(a) - rank(b) || (a.mod + a.inst + a.test < b.mod + b.inst + b.test ? -1 : 1); });
-    if (!rows.length) { $("tests").innerHTML = "<p class=\"empty\">No tests match this filter here.</p>"; $("more").hidden = true; $("tests-note").textContent = ""; return; }
-    var h = "<table class=\"tests\"><thead><tr><th>Test</th>" + (depth < 3 ? "<th>Where</th>" : "") + "<th>Last " + D.history + " runs, oldest → latest</th><th class=\"r\">Seeds passing</th><th>Status</th><th>Since</th>" + (O ? "<th>Owner</th>" : "") + "<th>First error in latest run</th></tr></thead><tbody>";
-    rows.slice(0, limit).forEach(function (t) {
-      var where = [t.ss, t.mod, t.inst].slice(depth).filter(function (p, i, arr) { return !(i === arr.length - 1 && p === t.mod && arr.length > 1); });
-      var st = t.status === "PASS" ? "ok" : t.status === "TIMEOUT" ? "warn" : t.status === "NOT RUN" ? "" : "bad";
-      h += "<tr><td><span class=\"mono\">" + esc(t.test) + "</span>" + (t.new ? "<span class=\"tag-new\">new</span>" : t.fixed ? "<span class=\"tag-fixed\">fixed</span>" : "") + "</td>" +
-        (depth < 3 ? "<td class=\"where\">" + where.map(esc).join(" › ") + "</td>" : "") +
-        "<td><span class=\"strip\">" + t.h.split("").map(function (c) { var k = { P: "PASS", F: "FAIL", T: "TIMEOUT", E: "ERROR" }[c]; return "<span class=\"" + (k || "none") + "\" title=\"" + (k ? k.toLowerCase() : "not run") + "\"></span>"; }).join("") + "</span></td>" +
-        "<td class=\"r\">" + esc(t.seeds || "–") + "</td>" +
-        "<td>" + (st ? "<span class=\"pill " + st + "\">" + t.status.toLowerCase() + "</span>" : "<span class=\"muted\">not run</span>") + "</td>" +
-        "<td class=\"mono\" style=\"font-size:.78rem;white-space:nowrap\">" + esc(t.since || "–") + "</td>" +
-        (O ? "<td class=\"own\" style=\"font-size:.8rem;white-space:nowrap\">" + esc(t.o) + "</td>" : "") +
-        "<td class=\"sig\" style=\"max-width:380px\">" + esc(t.sig) + "</td></tr>";
+    var rows = scoped().filter(function (r) { return matches(r.t, r.x); }).sort(function (p, q) {
+      return rank(p) - rank(q) || (q.x.age || 0) - (p.x.age || 0) || (p.t.mod + p.t.inst + p.t.test < q.t.mod + q.t.inst + q.t.test ? -1 : 1);
+    });
+    var more = $("more");
+    if (!rows.length) { $("tests").innerHTML = "<p class=\"empty\">No tests match this filter here.</p>"; more.hidden = true; $("tests-note").textContent = ""; return; }
+    if (view === "heat") renderHeat(rows.slice(0, limit), depth); else renderTable(rows.slice(0, limit), depth);
+    more.hidden = rows.length <= limit; more.textContent = "Show all " + rows.length + " tests";
+    $("tests-note").textContent = rows.length + " test" + (rows.length === 1 ? "" : "s") + " in " + n.name + (ownerFilter ? " owned by " + ownerFilter : "") + (filter === "all" && !query ? "" : " match") + ", at " + D.runs[V].run + (C >= 0 ? " compared with " + D.runs[C].run : "") + ". A test passes a run only if every seed passed.";
+  }
+  function whereOf(t, depth) { return [t.ss, t.mod, t.inst].slice(depth).filter(function (p, i, arr) { return !(i === arr.length - 1 && p === t.mod && arr.length > 1); }); }
+  function renderTable(rows, depth) {
+    var h = "<table class=\"tests\"><thead><tr><th>Test</th>" + (depth < 3 ? "<th>Where</th>" : "") + "<th>Last " + D.history + " runs to " + esc(shortDate(D.runs[V].date)) + "</th><th class=\"r\">Seeds</th><th>Status</th><th class=\"r\">Failing for</th><th>Since</th>" + (O ? "<th>Owner</th>" : "") + "<th>First error</th></tr></thead><tbody>";
+    rows.forEach(function (r) {
+      var t = r.t, x = r.x, st = STATUS[x.a] || "NOT RUN", cls = st === "PASS" ? "ok" : st === "TIMEOUT" ? "warn" : st === "NOT RUN" ? "" : "bad";
+      var strip = ""; for (var i = Math.max(0, V - D.history + 1); i <= V; i++) { var c = t.hist[i]; strip += "<span class=\"" + (STATUS[c] || "none") + "\" title=\"" + esc(D.runs[i].run) + ": " + (STATUS[c] ? STATUS[c].toLowerCase() : "not run") + "\"></span>"; }
+      h += "<tr><td><span class=\"mono\">" + esc(t.test) + "</span>" + (x.isNew ? "<span class=\"tag-new\">new</span>" : x.isFixed ? "<span class=\"tag-fixed\">fixed</span>" : "") + "</td>" +
+        (depth < 3 ? "<td class=\"where\">" + whereOf(t, depth).map(esc).join(" › ") + "</td>" : "") +
+        "<td><span class=\"strip\">" + strip + "</span></td>" +
+        "<td class=\"r\">" + (V === L ? esc(t.seeds || "–") : "<span class=\"muted\" title=\"Seed counts are kept for the latest run only\">–</span>") + "</td>" +
+        "<td>" + (cls ? "<span class=\"pill " + cls + "\">" + st.toLowerCase() + "</span>" : "<span class=\"muted\">not run</span>") + "</td>" +
+        "<td class=\"r num" + (x.age != null && x.age >= D.stuck_days ? " age-hot" : "") + "\">" + (x.age == null ? "" : x.age + "d") + "</td>" +
+        "<td class=\"mono\" style=\"font-size:.78rem;white-space:nowrap\">" + esc(sinceRun(t, V) || "–") + "</td>" +
+        (O ? "<td class=\"own\">" + esc(t.o) + "</td>" : "") +
+        "<td class=\"sig\" style=\"max-width:360px\">" + esc(t.sigAt[V] || "") + "</td></tr>";
     });
     $("tests").innerHTML = h + "</tbody></table>";
-    var more = $("more");
-    more.hidden = rows.length <= limit;
-    more.textContent = "Show all " + rows.length + " tests";
-    $("tests-note").textContent = rows.length + " test" + (rows.length === 1 ? "" : "s") + " in " + n.name + (ownerFilter ? " owned by " + ownerFilter : "") + (filter === "all" && !query ? "" : " match") + ". A test passes a run only if every seed passed.";
+  }
+  function renderHeat(rows, depth) {
+    rows = rows.slice().sort(function (p, q) { return (p.t.mod + "|" + p.t.inst + "|" + p.t.test) < (q.t.mod + "|" + q.t.inst + "|" + q.t.test) ? -1 : 1; });
+    var head = "<div class=\"hrow\"><span></span><div class=\"cells dates\">";
+    for (var i = 0; i < N; i++) head += "<span>" + ((L - i) % 3 === 0 || N <= 16 ? esc(shortDate(D.runs[i].date)) : "") + "</span>";
+    var h = "<div class=\"heat\" role=\"img\" aria-label=\"Test results by run\">" + head + "</div></div>", group = null;
+    rows.forEach(function (r) {
+      var t = r.t, g = whereOf(t, Math.min(depth, 2)).join(" › ") || t.inst;
+      if (g !== group) { group = g; h += "<div class=\"hgroup\">" + esc(g) + "</div>"; }
+      var cells = "";
+      for (var i = 0; i < N; i++) { var c = t.hist[i]; cells += "<span class=\"" + (STATUS[c] ? c : "") + (i === V ? " v" : i === C ? " c" : "") + "\" title=\"" + esc(t.test + " · " + D.runs[i].run + ": " + (STATUS[c] ? STATUS[c].toLowerCase() : "not run")) + "\"></span>"; }
+      h += "<div class=\"hrow\"><span class=\"hlabel\" title=\"" + esc(t.test) + "\">" + esc(t.test) + (r.x.isNew ? " <span class=\"tag-new\">new</span>" : "") + "</span><div class=\"cells\">" + cells + "</div></div>";
+    });
+    $("tests").innerHTML = h + "</div><p class=\"muted\" style=\"font-size:.78rem;margin:8px 0 0\">Columns are nightly runs, oldest first. The heavy outline marks the run you are viewing; the thin one marks the run it is compared with. Dashed cells were not run.</p>";
   }
 
+  /* ---------- wiring ---------- */
   function renderAll() {
-    renderHeader(); renderKpis(); renderTrend(); renderSigs(); renderOwners(); renderTree(); renderFilters(); renderTests();
-    $("footer").textContent = "Generated " + D.generated + " by socdash.py from the project's regression results. Instances are grouped by the CSV's subsystem and instance columns, or by \"subsystems\" in config.json.";
+    COUNTS = countsAt(V, C);
+    renderControls(); renderHeader(); renderKpis(); renderWeeks(); renderDigest(); renderBurnup(); renderRateChart();
+    renderFailures(); renderOwners(); renderTree(); renderFilters(); renderTests();
+    $("footer").textContent = "Generated " + D.generated + " by socdash.py. Forecasts fit a straight line to the last runs and are a guide, not a promise. Instances are grouped by the CSV's subsystem and instance columns, or by \"subsystems\" in config.json.";
   }
-
-  function select(id, keepScroll) {
+  function select(id) {
     if (!byId[id]) id = "all";
     sel = id; limit = 150;
     var n = byId[id];
     for (var d = 1; d < n.path.length; d++) expanded[n.path.slice(0, d).map(slug).join("--")] = true;
-    expanded[id] = true;  // show the selected node's children too
+    expanded[id] = true;
     var want = id === "all" ? "" : "#" + id;
     if (location.hash !== want) { try { history.replaceState(null, "", want || location.pathname + location.search); } catch (e) { location.hash = want; } }
     renderAll();
   }
+  function setRuns() { C = cmpChoice === "prev" ? V - 1 : +cmpChoice; if (C === V) C = V - 1; }
 
+  $("run-view").addEventListener("change", function (e) { V = +e.target.value; setRuns(); limit = 150; renderAll(); });
+  $("run-cmp").addEventListener("change", function (e) { cmpChoice = e.target.value; setRuns(); renderAll(); });
   document.addEventListener("click", function (e) {
-    var t = e.target.closest("[data-node],[data-toggle],[data-filter],[data-week],[data-owner],[data-clear-owner],#more,#expand-all,#collapse-all");
+    var t = e.target.closest("[data-node],[data-toggle],[data-filter],[data-week],[data-owner],[data-clear-owner],[data-view],[data-latest],#more,#expand-all,#collapse-all");
     if (!t) return;
-    if (t.hasAttribute("data-week")) { week = +t.getAttribute("data-week"); renderOwners(); return; }
+    if (t.hasAttribute("data-latest")) { V = L; cmpChoice = "prev"; setRuns(); renderAll(); return; }
+    if (t.hasAttribute("data-week")) { week = +t.getAttribute("data-week"); renderWeeks(); renderDigest(); renderOwners(); return; }
+    if (t.hasAttribute("data-view")) { view = t.getAttribute("data-view"); renderFilters(); renderTests(); return; }
     if (t.hasAttribute("data-owner")) {
       var who = t.getAttribute("data-owner");
       ownerFilter = ownerFilter === who ? null : who;
@@ -413,6 +706,7 @@
   });
   $("search").addEventListener("input", function (e) { query = e.target.value.trim(); limit = 150; renderTests(); });
   window.addEventListener("hashchange", function () { select(location.hash.replace(/^#/, "") || "all"); });
+  setRuns();
   select(location.hash.replace(/^#/, "") || "all");
 })();
 </script>

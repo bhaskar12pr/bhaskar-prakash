@@ -18,6 +18,7 @@ import argparse
 import csv
 import datetime as dt
 import json
+import math
 import re
 import sys
 from collections import Counter, defaultdict
@@ -28,13 +29,17 @@ TEMPLATES = HERE / "templates"
 
 # Input files a project folder holds. config.json may rename any of them under "files".
 DEFAULT_FILES = {"regression": "regression_runs.csv", "coverage": "coverage.csv",
-                 "bugs": "bugs.csv", "testplan": "testplan.csv", "owners": "owners.csv"}
-OPTIONAL_FILES = {"owners"}  # a project without this file simply has no owner view
+                 "bugs": "bugs.csv", "testplan": "testplan.csv", "owners": "owners.csv",
+                 "testplan_history": "testplan_history.csv", "owner_targets": "owner_targets.csv"}
+# A project without one of these files simply goes without the views that need it.
+OPTIONAL_FILES = {"owners", "testplan_history", "owner_targets"}
+TESTPLAN_HISTORY_COLS = ("date", "id", "status")
+OWNER_TARGET_COLS = ("owner", "week_end", "target_passing")
 OWNER_COLS = ("owner", "scope")
 UNASSIGNED = "(unassigned)"
 # Tunable settings a project may override under "settings" in config.json.
 DEFAULT_SETTINGS = {"intermittent_window": 7, "bug_trend_weeks": 10, "stale_after_days": 3,
-                    "test_history_runs": 10, "owner_weeks": 6}
+                    "test_history_runs": 10, "weeks": 6, "forecast_runs": 10, "stuck_days": 7}
 UNGROUPED = "(no subsystem)"
 
 STATUSES = ("PASS", "FAIL", "TIMEOUT", "ERROR")
@@ -119,19 +124,27 @@ def load(data_dir: Path) -> dict:
     if not runs:
         raise InputError("regression_runs.csv: no rows")
 
-    coverage = []
+    # coverage.csv may hold one snapshot, or several told apart by an optional date column.
+    coverage_history = []
     for r in read_csv(files["coverage"], COVERAGE_COLS):
         covered = _num(r["covered"], r["_where"], int)
         total = _num(r["total"], r["_where"], int)
         if total <= 0 or covered > total:
             raise InputError(f"{r['_where']}: need 0 <= covered <= total and total > 0")
-        coverage.append({
+        coverage_history.append({
+            "date": _date(r["date"], r["_where"]) if r.get("date") else None,
             "block": r["block"],
             "metric": _choice(r, "metric", METRICS),
             "covered": covered,
             "total": total,
             "target": _num(r["target_pct"], r["_where"]),
         })
+    latest_cov = {}
+    for c in coverage_history:
+        key = (c["block"], c["metric"])
+        if key not in latest_cov or (c["date"] or dt.date.min) >= (latest_cov[key]["date"] or dt.date.min):
+            latest_cov[key] = c
+    coverage = list(latest_cov.values())
 
     bugs = []
     for r in read_csv(files["bugs"], BUG_COLS):
@@ -173,8 +186,30 @@ def load(data_dir: Path) -> dict:
             owners.append({"owner": r["owner"], "scope": scope, "_where": r["_where"]})
         check_owner_scopes(owners, runs, config)
 
-    return {"config": config, "dir": data_dir, "runs": runs, "coverage": coverage, "bugs": bugs,
-            "testplan": testplan, "owners": owners}
+    def optional(key):
+        return files[key].exists() or key in config.get("_explicit_files", ())
+
+    testplan_history = []
+    if optional("testplan_history"):
+        ids = {t["id"] for t in testplan}
+        for r in read_csv(files["testplan_history"], TESTPLAN_HISTORY_COLS):
+            if r["id"] not in ids:
+                raise InputError(f"{r['_where']}: id '{r['id']}' is not in the testplan")
+            testplan_history.append({"date": _date(r["date"], r["_where"]), "id": r["id"],
+                                     "status": _choice(r, "status", TESTPLAN_STATES)})
+
+    owner_targets = {}
+    if optional("owner_targets"):
+        names = {o["owner"] for o in owners}
+        for r in read_csv(files["owner_targets"], OWNER_TARGET_COLS):
+            if r["owner"] not in names:
+                raise InputError(f"{r['_where']}: owner '{r['owner']}' is not in owners.csv")
+            week_end = _date(r["week_end"], r["_where"]).isoformat()
+            owner_targets[(r["owner"], week_end)] = _num(r["target_passing"], r["_where"], int)
+
+    return {"config": config, "dir": data_dir, "runs": runs, "coverage": coverage,
+            "coverage_history": coverage_history, "bugs": bugs, "testplan": testplan,
+            "testplan_history": testplan_history, "owners": owners, "owner_targets": owner_targets}
 
 
 def check_owner_scopes(owners, runs, config):
@@ -471,7 +506,76 @@ def summarize(data: dict, block: str | None) -> dict:
         },
         "testplan": testplan_rollup(plan),
         "signoff": milestones,
+        "forecast": forecast([d for _, d in order], [t["rate"] for t in trend], current_milestone(data["config"])["need"],
+                             current_milestone(data["config"])["due"], settings["forecast_runs"]),
+        "coverage_trend": coverage_trend(pick(data["coverage_history"])),
+        "testplan_trend": testplan_trend(plan, data["testplan_history"], data["as_of"], settings["bug_trend_weeks"]),
+        "fix_speed": fix_speed(bugs, data["as_of"]),
     }
+
+
+def coverage_trend(history):
+    """Percent covered per metric at each coverage snapshot date (None if fewer than two)."""
+    dated = sorted({c["date"] for c in history if c["date"]})
+    if len(dated) < 2:
+        return None
+    points = []
+    for day in dated:
+        snap = {}
+        for c in history:
+            if c["date"] and c["date"] <= day:
+                key = (c["block"], c["metric"])
+                if key not in snap or c["date"] >= snap[key]["date"]:
+                    snap[key] = c
+        metrics = {}
+        for m in METRICS:
+            cells = [c for (b, mm), c in snap.items() if mm == m]
+            if cells:
+                total = sum(c["total"] for c in cells)
+                metrics[m] = {"pct": 100 * sum(c["covered"] for c in cells) / total,
+                              "target": sum(c["target"] * c["total"] for c in cells) / total,
+                              "met": sum(1 for c in cells if 100 * c["covered"] / c["total"] >= c["target"]),
+                              "cells": len(cells)}
+        points.append({"date": day.isoformat(), "metrics": metrics})
+    return points
+
+
+def testplan_trend(items, history, as_of, weeks):
+    """Planned / written / passing counts at the end of each week (None without history).
+
+    An item's status on a day is its latest change on or before that day. Before its first
+    recorded change it counts as planned; an item with no recorded changes keeps its
+    current status throughout.
+    """
+    if not history:
+        return None
+    ids = {t["id"] for t in items}
+    changes = defaultdict(list)
+    for h in sorted(history, key=lambda h: h["date"]):
+        if h["id"] in ids:
+            changes[h["id"]].append(h)
+    points = []
+    for w in range(weeks - 1, -1, -1):
+        day = as_of - dt.timedelta(days=7 * w)
+        counts = Counter()
+        for t in items:
+            past = [h for h in changes.get(t["id"], []) if h["date"] <= day]
+            counts[past[-1]["status"] if past else "planned" if changes.get(t["id"]) else t["status"]] += 1
+        points.append({"date": day.isoformat(), **{s: counts[s] for s in TESTPLAN_STATES}})
+    return points
+
+
+def fix_speed(bugs, as_of):
+    """Days from opened to closed per severity, and the age of what is still open."""
+    out = []
+    for sev in SEVERITIES:
+        closed = sorted((b["closed"] - b["opened"]).days for b in bugs if b["severity"] == sev and b["closed"])
+        open_ages = [(as_of - b["opened"]).days for b in bugs if b["severity"] == sev and b["status"] in UNRESOLVED]
+        out.append({"severity": sev, "closed": len(closed),
+                    "median": closed[len(closed) // 2] if closed else None,
+                    "p90": closed[min(len(closed) - 1, int(len(closed) * 0.9))] if closed else None,
+                    "open": len(open_ages), "oldest_open": max(open_ages) if open_ages else None})
+    return out
 
 
 STATUS_CHAR = {"PASS": "P", "FAIL": "F", "TIMEOUT": "T", "ERROR": "E"}
@@ -497,13 +601,19 @@ def regression_tree(data: dict) -> dict:
 
     A test's result in a run is PASS only if every seed passed; otherwise it takes the
     status of its first non-passing seed. Progress at every level is counted in tests.
+    Each test carries its full run history so the page can show any run, compare two
+    runs, and draw a heatmap without another build.
     """
     cfg = data["config"]
+    settings = cfg["settings"]
     order = run_order(data["runs"])
     run_ids = [r for r, _ in order]
+    dates = [d for _, d in order]
     idx = {r: i for i, r in enumerate(run_ids)}
     n, latest, prev = len(run_ids), len(run_ids) - 1, len(run_ids) - 2
-    history = cfg["settings"]["test_history_runs"]
+    history = settings["test_history_runs"]
+    milestone = current_milestone(cfg)
+    need, due = milestone["need"], milestone["due"]
 
     tests = {}  # (ss, module, instance, test) -> per-run results
     for r in data["runs"]:
@@ -529,6 +639,14 @@ def regression_tree(data: dict) -> dict:
     test_rows = []
     has_owners = bool(data.get("owners"))
     owner_of = owner_lookup(data.get("owners", []))
+    sig_list, sig_ids = [], {}
+
+    def sig_id(text):
+        if text not in sig_ids:
+            sig_ids[text] = len(sig_list)
+            sig_list.append(text)
+        return sig_ids[text]
+
     for key in sorted(tests):
         ss, mod, inst, name = key
         t = tests[key]
@@ -539,14 +657,12 @@ def regression_tree(data: dict) -> dict:
                 nodes[paths[depth - 1]]["children"].append(paths[depth])
         st = t["status"]
         cur, before = st.get(latest), st.get(prev)
-        # When did the current outcome start? Walk back while the test kept that outcome.
         since = None
         if cur is not None:
             i = latest
             while i - 1 >= 0 and st.get(i - 1) is not None and (st[i - 1] == "PASS") == (cur == "PASS"):
                 i -= 1
             since = run_ids[i]
-        ran = [s for s in st.values()]
         for path in paths:
             node = nodes[path]
             node["tests"] += 1
@@ -558,20 +674,20 @@ def regression_tree(data: dict) -> dict:
                 node["new_fail"] += 1
             elif cur == "PASS" and before is not None and before != "PASS":
                 node["fixed"] += 1
-            if ran and all(s != "PASS" for s in ran):
+            if st and all(s != "PASS" for s in st.values()):
                 node["always_fail"] += 1
-        flips = sum(1 for i in range(max(0, n - history) + 1, n)
-                    if st.get(i) and st.get(i - 1) and (st[i] == "PASS") != (st[i - 1] == "PASS"))
         seeds = t["seeds"].get(latest)
+        hist = "".join(STATUS_CHAR.get(st.get(i), "-") for i in range(n))
         test_rows.append({
             "n": node_slug(paths[3]), "ss": ss, "mod": mod, "inst": inst, "test": name,
-            "h": "".join(STATUS_CHAR.get(st.get(i), "-") for i in range(max(0, n - history), n)),
+            "hist": hist,  # one character per run: P pass, F fail, T timeout, E error, - not run
+            "fs": [[i, sig_id(sig)] for i, sig in sorted(t["sig"].items())],  # first error per failing run
             "status": cur or "NOT RUN",
             "seeds": f"{seeds[0]}/{seeds[1]}" if seeds else "",
             "since": since,
+            "fail_days": fail_age(st, latest, dates),
             "new": cur is not None and cur != "PASS" and before == "PASS",
             "fixed": cur == "PASS" and before is not None and before != "PASS",
-            "flips": flips,
             "sig": t["sig"].get(latest, ""),
             "o": owner_of(ss, mod, inst, name) if has_owners else "",
         })
@@ -587,32 +703,46 @@ def regression_tree(data: dict) -> dict:
         sims = node.pop("sims")
         node["total"] = [sum(c.values()) for c in sims]
         node["pass"] = [c["PASS"] for c in sims]
+        node["fail"] = [c["FAIL"] for c in sims]
+        node["timeout"] = [c["TIMEOUT"] for c in sims]
+        node["error"] = [c["ERROR"] for c in sims]
         last = sims[latest]
         node["latest"] = {"fail": last["FAIL"], "timeout": last["TIMEOUT"], "error": last["ERROR"]}
         node["children"] = [node_slug(c) for c in sorted(node["children"])]
         node["owners"] = sorted({t["o"] for t in test_rows if t["o"] and
                                  [t["ss"], t["mod"], t["inst"]][:len(path)] == list(path)})
+        rates = [p / t if t else None for p, t in zip(node["pass"], node["total"])]
+        node["forecast"] = forecast(dates, rates, need, due, settings["forecast_runs"])
+        node["burn"] = burn_slope(dates, node["tp"], node["total"], settings["forecast_runs"])
         out.append(node)
     out.sort(key=lambda nd: nd["path"])
+    weeks = run_weeks(dates, project_as_of(cfg, dates), settings["weeks"])
     return {"runs": [{"run": r, "date": d.isoformat()} for r, d in order],
-            "nodes": out, "tests": test_rows, "history": min(history, n),
-            "owners": owner_weeks(data, tests, order, owner_of) if has_owners else None}
+            "nodes": out, "tests": test_rows, "sigs": sig_list, "history": min(history, n),
+            "weeks": [{k: v for k, v in w.items() if k != "in"} for w in weeks],
+            "stuck_days": settings["stuck_days"],
+            "owners": owner_weeks(data, tests, order, owner_of, weeks) if has_owners else None}
 
 
-def owner_weeks(data, tests, order, owner_of):
-    """Week-by-week progress for every owner.
+def current_milestone(cfg) -> dict:
+    """The milestone the project is working toward: name, due date and pass-rate bar."""
+    m = next((m for m in cfg.get("milestones", []) if m["name"] == cfg.get("current_milestone")), None) or {}
+    return {"name": m.get("name"), "due": dt.date.fromisoformat(m["date"]) if m.get("date") else None,
+            "need": m.get("criteria", {}).get("min_pass_rate")}
 
-    A week runs from the day after its start to its end date inclusive, ending on the
-    project's as-of date and stepping back 7 days at a time. "Start" is the last run
-    before the week began (or the week's first run if there was none); "end" is the
-    week's last run. Weeks with no runs are left out.
+
+def project_as_of(cfg, dates) -> dt.date:
+    return dt.date.fromisoformat(cfg["as_of"]) if cfg.get("as_of") else dates[-1]
+
+
+def run_weeks(dates, as_of, count):
+    """Weeks of runs, oldest first, each ending `as_of - 7k` days and covering the 7 days before.
+
+    `s` is the last run before the week began (None for the first week of data), `e` the
+    week's last run, `in` the indexes of the week's runs. Weeks without runs are left out.
     """
-    cfg = data["config"]
-    dates = [d for _, d in order]
-    run_ids = [r for r, _ in order]
-    as_of = dt.date.fromisoformat(cfg["as_of"]) if cfg.get("as_of") else dates[-1]
     weeks = []
-    for w in range(cfg["settings"]["owner_weeks"] - 1, -1, -1):
+    for w in range(count - 1, -1, -1):
         end = as_of - dt.timedelta(days=7 * w)
         start = end - dt.timedelta(days=7)
         in_week = [i for i, d in enumerate(dates) if start < d <= end]
@@ -620,18 +750,100 @@ def owner_weeks(data, tests, order, owner_of):
             continue
         before = [i for i, d in enumerate(dates) if d <= start]
         weeks.append({"start": start.isoformat(), "end": end.isoformat(), "runs": len(in_week),
-                      "start_run": run_ids[before[-1]] if before else None,
-                      "end_run": run_ids[in_week[-1]],
-                      "_in": set(in_week), "_s": before[-1] if before else None, "_e": in_week[-1]})
+                      "s": before[-1] if before else None, "e": in_week[-1], "in": set(in_week)})
+    return weeks
+
+
+def fail_age(status: dict, at: int, dates) -> int | None:
+    """Days a test has been failing as of run `at` (runs it skipped don't break the streak)."""
+    if status.get(at) in (None, "PASS"):
+        return None
+    first = at
+    for j in range(at - 1, -1, -1):
+        s = status.get(j)
+        if s is None:
+            continue
+        if s == "PASS":
+            break
+        first = j
+    return (dates[at] - dates[first]).days
+
+
+def fit_line(xs, ys):
+    """Least-squares line: returns (intercept, slope) or None if it can't be fitted."""
+    n = len(xs)
+    if n < 2:
+        return None
+    mx, my = sum(xs) / n, sum(ys) / n
+    sxx = sum((x - mx) ** 2 for x in xs)
+    if sxx == 0:
+        return None
+    b = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / sxx
+    return my - b * mx, b
+
+
+def forecast(dates, rates, need, due, window):
+    """When will the pass rate reach `need`? Fits a line to the last `window` runs that ran.
+
+    status: met (last three runs average at or above the bar), on_track (projected before `due`),
+    at_risk (projected after `due`, or `due` has passed), stalled (not improving),
+    projected (no due date to compare with), unknown (too little data or no bar).
+    """
+    pts = [(d, r) for d, r in zip(dates, rates) if r is not None][-window:]
+    if need is None or len(pts) < 3:
+        return {"status": "unknown"}
+    last_date, last = pts[-1]
+    recent = sum(r for _, r in pts[-3:]) / 3
+    if recent >= need:  # the last three runs average at or above the bar
+        return {"status": "met", "eta": last_date.isoformat()}
+    xs = [(d - pts[0][0]).days for d, _ in pts]
+    fit = fit_line(xs, [r for _, r in pts])
+    if fit is None:
+        return {"status": "unknown"}
+    a, b = fit
+    per_week = b * 7
+    if per_week < 0.002:  # under 0.2 points a week: call it stalled
+        return {"status": "stalled", "per_week": per_week}
+    now = a + b * xs[-1]
+    eta = last_date + dt.timedelta(days=max(1, math.ceil((need - now) / b - 1e-9)))  # 1e-9: float noise
+    if due is None:
+        status = "projected"
+    else:
+        status = "on_track" if eta <= due and last_date <= due else "at_risk"
+    return {"status": status, "eta": eta.isoformat(), "per_week": per_week,
+            "due": due.isoformat() if due else None}
+
+
+def burn_slope(dates, passing, totals, window):
+    """Tests gained per day over the last `window` runs, for the burn-up projection."""
+    pts = [(d, p) for d, p, t in zip(dates, passing, totals) if t][-window:]
+    if len(pts) < 3:
+        return None
+    fit = fit_line([(d - pts[0][0]).days for d, _ in pts], [p for _, p in pts])
+    return fit[1] if fit else None
+
+
+def owner_weeks(data, tests, order, owner_of, weeks):
+    """Week-by-week progress for every owner, plus a pass-rate forecast per owner.
+
+    "Start" is the last run before the week began (or nothing in the first week of data);
+    "end" is the week's last run.
+    """
+    cfg = data["config"]
+    dates = [d for _, d in order]
+    run_ids = [r for r, _ in order]
+    milestone = current_milestone(cfg)
+    stuck = cfg["settings"]["stuck_days"]
 
     def blank():
         return {k: 0 for k in ("tp_s", "tp_e", "ran_s", "ran_e", "fail_e", "added", "new_fail", "fixed",
-                               "sims", "sims_pass", "bug_opened", "bug_closed", "bug_unresolved")}
+                               "sims", "sims_pass", "bug_opened", "bug_closed", "bug_unresolved", "stuck")}
     stats = defaultdict(lambda: [blank() for _ in weeks])
     scopes = defaultdict(list)
     for o in data["owners"]:
         scopes[o["owner"]].append(o["scope"])
     current_tests = Counter()
+    oldest = defaultdict(lambda: [None for _ in weeks])
 
     for (ss, mod, inst, name), t in tests.items():
         o = owner_of(ss, mod, inst, name)
@@ -639,34 +851,48 @@ def owner_weeks(data, tests, order, owner_of):
         current_tests[o] += 1
         first = min(st)
         for wi, wk in enumerate(weeks):
-            s = st.get(wk["_s"]) if wk["_s"] is not None else None
-            e = st.get(wk["_e"])
+            s = st.get(wk["s"]) if wk["s"] is not None else None
+            e = st.get(wk["e"])
             x = stats[o][wi]
             x["tp_s"] += s == "PASS"
             x["tp_e"] += e == "PASS"
             x["ran_s"] += s is not None
             x["ran_e"] += e is not None
             x["fail_e"] += e is not None and e != "PASS"
-            x["added"] += first in wk["_in"]
+            x["added"] += first in wk["in"]
             x["new_fail"] += s == "PASS" and e is not None and e != "PASS"
             x["fixed"] += s is not None and s != "PASS" and e == "PASS"
+            age = fail_age(st, wk["e"], dates)
+            if age is not None:
+                x["stuck"] += age >= stuck
+                if oldest[o][wi] is None or age > oldest[o][wi]["days"]:
+                    oldest[o][wi] = {"days": age, "test": name, "where": f"{mod}/{inst}"}
 
     idx = {r: i for i, r in enumerate(run_ids)}
+    sims = defaultdict(lambda: ([0] * len(order), [0] * len(order)))
     for r in data["runs"]:
         ss, mod, inst = hierarchy_path(r, cfg["block_subsystem"])
         o = owner_of(ss, mod, inst, r["test"])
         i = idx[r["run_id"]]
+        sims[o][0][i] += 1
+        sims[o][1][i] += r["status"] == "PASS"
         for wi, wk in enumerate(weeks):
-            if i in wk["_in"]:
+            if i in wk["in"]:
                 stats[o][wi]["sims"] += 1
                 stats[o][wi]["sims_pass"] += r["status"] == "PASS"
 
     block_ss = {}
     for r in data["runs"]:
         block_ss.setdefault(r["block"], hierarchy_path(r, cfg["block_subsystem"])[0])
+
+    def block_owner(block):
+        return owner_of(block_ss.get(block, cfg["block_subsystem"].get(block, UNGROUPED)), block)
+
+    fix_days = defaultdict(list)  # owner -> [(closed date, days to fix)]
     for b in data["bugs"]:
-        o = b.get("owner") or owner_of(block_ss.get(b["block"], cfg["block_subsystem"].get(b["block"], UNGROUPED)),
-                                         b["block"])
+        o = b.get("owner") or block_owner(b["block"])
+        if b["closed"]:
+            fix_days[o].append((b["closed"], (b["closed"] - b["opened"]).days))
         for wi, wk in enumerate(weeks):
             start, end = dt.date.fromisoformat(wk["start"]), dt.date.fromisoformat(wk["end"])
             x = stats[o][wi]
@@ -674,24 +900,54 @@ def owner_weeks(data, tests, order, owner_of):
             x["bug_closed"] += b["closed"] is not None and start < b["closed"] <= end
             x["bug_unresolved"] += b["opened"] <= end and (b["closed"] is None or b["closed"] > end)
 
+    # Functional coverage of the blocks each owner owns at module level, at each week's end.
+    cov = defaultdict(lambda: defaultdict(dict))  # owner -> date -> block -> (covered, total)
+    for c in data.get("coverage_history", []):
+        if c["metric"] == "functional" and c["date"]:
+            cov[block_owner(c["block"])][c["date"]][c["block"]] = (c["covered"], c["total"])
+
+    def coverage_at(o, day):
+        snap = {}
+        for d in sorted(cov[o]):
+            if d <= day:
+                snap.update(cov[o][d])
+        if not snap:
+            return None
+        return 100 * sum(c for c, _ in snap.values()) / sum(t for _, t in snap.values())
+
+    for o in list(stats):
+        for wi, wk in enumerate(weeks):
+            x = stats[o][wi]
+            end = dt.date.fromisoformat(wk["end"])
+            start = dt.date.fromisoformat(wk["start"])
+            x["target"] = data.get("owner_targets", {}).get((o, wk["end"]))
+            x["cov_s"] = coverage_at(o, start) if wk["s"] is not None else None
+            x["cov_e"] = coverage_at(o, end)
+            done = sorted(days for closed, days in fix_days[o] if closed <= end)
+            x["fix_median"] = done[len(done) // 2] if done else None
+            x["oldest"] = oldest[o][wi]
+
     names = sorted(stats, key=lambda o: (o == UNASSIGNED, o.lower()))
     return {
-        "weeks": [{k: v for k, v in wk.items() if not k.startswith("_")} for wk in weeks],
         "list": [{"owner": o, "scopes": sorted(scopes.get(o, [])), "tests": current_tests[o],
-                  "weeks": stats[o]} for o in names],
+                  "weeks": stats[o],
+                  "forecast": forecast(dates, [p / t if t else None for t, p in zip(*sims[o])],
+                                       milestone["need"], milestone["due"], cfg["settings"]["forecast_runs"])}
+                 for o in names],
     }
 
 
 def build_regression_payload(data: dict, links: dict) -> dict:
     cfg = data["config"]
-    current = next((m for m in cfg.get("milestones", []) if m["name"] == cfg.get("current_milestone")), None)
+    milestone = current_milestone(cfg)
     order = run_order(data["runs"])
     return {
         "project": cfg["project"],
         "latest_run": order[-1][0],
-        "as_of": (dt.date.fromisoformat(cfg["as_of"]) if cfg.get("as_of") else order[-1][1]).isoformat(),
-        "milestone": current["name"] if current else None,
-        "need": (current or {}).get("criteria", {}).get("min_pass_rate"),
+        "as_of": project_as_of(cfg, [d for _, d in order]).isoformat(),
+        "milestone": milestone["name"],
+        "due": milestone["due"].isoformat() if milestone["due"] else None,
+        "need": milestone["need"],
         "links": links,
         "generated": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
         **regression_tree(data),
@@ -747,7 +1003,26 @@ def project_card(payload: dict, href: str) -> dict:
         "failing": [c["label"] for c in current["checks"] if not c["ok"]] if current else [],
         "met": bool(current and current["met"]),
         "stale_after_days": payload["stale_after_days"],
+        "forecast": top["forecast"],
     }
+
+
+def owner_rows(project: str, href: str, reg: dict) -> list[dict]:
+    """Each owner's latest week in one project, for the cross-project owner table."""
+    if not reg.get("owners") or not reg["weeks"]:
+        return []
+    week = reg["weeks"][-1]
+    rows = []
+    for o in reg["owners"]["list"]:
+        if o["owner"] == UNASSIGNED:
+            continue
+        x = o["weeks"][-1]
+        rows.append({"owner": o["owner"], "project": project, "href": href, "week_end": week["end"],
+                     "first_week": week["s"] is None, "tp_s": x["tp_s"], "tp_e": x["tp_e"], "ran_e": x["ran_e"],
+                     "target": x["target"], "new_fail": x["new_fail"], "fixed": x["fixed"],
+                     "stuck": x["stuck"], "oldest": x["oldest"], "bug_unresolved": x["bug_unresolved"],
+                     "forecast": o["forecast"]})
+    return rows
 
 
 # --------------------------------------------------------------------------- rendering
@@ -955,7 +1230,7 @@ def build_all(projects_root: Path, out: Path, title: str, fail_on_signoff: bool 
     error, so one bad file does not hide every other project. Returns the exit code.
     """
     out.mkdir(parents=True, exist_ok=True)
-    cards, errors, unmet, used = [], 0, 0, set()
+    cards, errors, unmet, used, owners = [], 0, 0, set(), []
     for folder in discover_projects(projects_root):
         slug = slugify(folder.name)
         while slug in used:
@@ -976,10 +1251,11 @@ def build_all(projects_root: Path, out: Path, title: str, fail_on_signoff: bool 
         (out / reg_href).write_text(render_regression(reg))
         card = project_card(payload, href)
         card["regression_href"] = reg_href
+        owners.extend(owner_rows(payload["project"], reg_href, reg))
         cards.append(card)
         unmet += not card["met"]
         print_summary(payload)
-    overview = {"title": title, "projects": cards,
+    overview = {"title": title, "projects": cards, "owners": owners,
                 "generated": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}
     (out / "index.html").write_text(render_overview(overview))
     print(f"Wrote {out / 'index.html'} and {len(cards) - errors} project page(s)")

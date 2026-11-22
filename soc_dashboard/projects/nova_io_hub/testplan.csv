@@ -1,34 +1,37 @@
 id,block,feature,item,milestone,status,test
 TP-001,i2c_ctrl,Protocol,Protocol scenario 1,DV 1.0,passing,std_mode
-TP-002,i2c_ctrl,Protocol,Protocol scenario 2,DV 1.0,passing,clock_stretch
-TP-003,i2c_ctrl,Protocol,Protocol scenario 3,DV 1.0,passing,fast_mode_plus
-TP-004,i2c_ctrl,Protocol,Protocol scenario 4,DV 1.0,passing,clock_stretch
-TP-005,i2c_ctrl,Protocol,Protocol scenario 5,DV 1.0,passing,fast_mode_plus
-TP-006,i2c_ctrl,Multi-master,Multi-master scenario 1,DV 1.0,passing,clock_stretch
-TP-007,i2c_ctrl,Multi-master,Multi-master scenario 2,DV 1.0,passing,std_mode
-TP-008,i2c_ctrl,Multi-master,Multi-master scenario 3,DV 1.0,passing,std_mode
-TP-009,i2c_ctrl,Multi-master,Multi-master scenario 4,DV 1.0,passing,std_mode
-TP-010,i2c_ctrl,Multi-master,Multi-master scenario 5,DV 1.0,passing,std_mode
-TP-011,spi_ctrl,Modes,Modes scenario 1,DV 1.0,passing,quad_io
+TP-002,i2c_ctrl,Protocol,Protocol scenario 2,DV 1.0,passing,arbitration_loss
+TP-003,i2c_ctrl,Protocol,Protocol scenario 3,DV 1.0,passing,clock_stretch
+TP-004,i2c_ctrl,Protocol,Protocol scenario 4,DV 1.0,passing,arbitration_loss
+TP-005,i2c_ctrl,Protocol,Protocol scenario 5,DV 1.0,passing,arbitration_loss
+TP-006,i2c_ctrl,Protocol,Protocol scenario 6,DV 1.0,passing,std_mode
+TP-007,i2c_ctrl,Multi-master,Multi-master scenario 1,DV 1.0,passing,clock_stretch
+TP-008,i2c_ctrl,Multi-master,Multi-master scenario 2,DV 1.0,passing,arbitration_loss
+TP-009,i2c_ctrl,Multi-master,Multi-master scenario 3,DV 1.0,passing,std_mode
+TP-010,i2c_ctrl,Multi-master,Multi-master scenario 4,DV 1.0,passing,clock_stretch
+TP-011,spi_ctrl,Modes,Modes scenario 1,DV 1.0,passing,mode0_3
 TP-012,spi_ctrl,Modes,Modes scenario 2,DV 1.0,passing,mode0_3
 TP-013,spi_ctrl,Modes,Modes scenario 3,DV 1.0,passing,quad_io
-TP-014,spi_ctrl,Modes,Modes scenario 4,DV 1.0,passing,quad_io
-TP-015,spi_ctrl,Modes,Modes scenario 5,DV 1.0,passing,quad_io
-TP-016,spi_ctrl,Timing,Timing scenario 1,DV 1.0,passing,quad_io
-TP-017,spi_ctrl,Timing,Timing scenario 2,DV 1.0,passing,mode0_3
-TP-018,spi_ctrl,Timing,Timing scenario 3,DV 1.0,passing,mode0_3
-TP-019,spi_ctrl,Timing,Timing scenario 4,DV 1.0,passing,quad_io
-TP-020,uart,Framing,Framing scenario 1,DV 1.0,passing,parity_errors
-TP-021,uart,Framing,Framing scenario 2,DV 1.0,passing,baud_sweep
-TP-022,uart,Framing,Framing scenario 3,DV 1.0,passing,parity_errors
-TP-023,uart,Framing,Framing scenario 4,DV 1.0,passing,baud_sweep
-TP-024,uart,Flow control,Flow control scenario 1,DV 1.0,passing,parity_errors
-TP-025,uart,Flow control,Flow control scenario 2,DV 1.0,passing,flow_control
-TP-026,uart,Flow control,Flow control scenario 3,DV 1.0,passing,parity_errors
-TP-027,gpio_mux,Pin mux,Pin mux scenario 1,DV 1.0,passing,mux4to1_exhaustive
-TP-028,gpio_mux,Pin mux,Pin mux scenario 2,DV 1.0,passing,mux4to1_exhaustive
-TP-029,gpio_mux,Pin mux,Pin mux scenario 3,DV 1.0,passing,mux4to1_exhaustive
-TP-030,gpio_mux,Interrupts,Interrupts scenario 1,DV 1.0,passing,irq_edge_level
-TP-031,gpio_mux,Interrupts,Interrupts scenario 2,DV 1.0,passing,irq_edge_level
-TP-032,gpio_mux,Interrupts,Interrupts scenario 3,DV 1.0,passing,mux4to1_exhaustive
-TP-033,gpio_mux,Interrupts,Interrupts scenario 4,DV 1.0,passing,mux4to1_exhaustive
+TP-014,spi_ctrl,Timing,Timing scenario 1,DV 1.0,passing,mode0_3
+TP-015,spi_ctrl,Timing,Timing scenario 2,DV 1.0,passing,mode0_3
+TP-016,spi_ctrl,Timing,Timing scenario 3,DV 1.0,passing,mode0_3
+TP-017,spi_ctrl,Timing,Timing scenario 4,DV 1.0,passing,mode0_3
+TP-018,spi_ctrl,Timing,Timing scenario 5,DV 1.0,passing,cs_gap_timing
+TP-019,uart,Framing,Framing scenario 1,DV 1.0,passing,baud_sweep
+TP-020,uart,Framing,Framing scenario 2,DV 1.0,passing,baud_sweep
+TP-021,uart,Framing,Framing scenario 3,DV 1.0,passing,baud_sweep
+TP-022,uart,Flow control,Flow control scenario 1,DV 1.0,passing,parity_errors
+TP-023,uart,Flow control,Flow control scenario 2,DV 1.0,passing,parity_errors
+TP-024,uart,Flow control,Flow control scenario 3,DV 1.0,passing,baud_sweep
+TP-025,uart,Flow control,Flow control scenario 4,DV 1.0,passing,flow_control
+TP-026,uart,Flow control,Flow control scenario 5,DV 1.0,passing,parity_errors
+TP-027,uart,Flow control,Flow control scenario 6,DV 1.0,passing,baud_sweep
+TP-028,gpio_mux,Pin mux,Pin mux scenario 1,DV 1.0,passing,mux4to1_exhaustive
+TP-029,gpio_mux,Pin mux,Pin mux scenario 2,DV 1.0,passing,debounce
+TP-030,gpio_mux,Pin mux,Pin mux scenario 3,DV 1.0,passing,debounce
+TP-031,gpio_mux,Pin mux,Pin mux scenario 4,DV 1.0,passing,mux4to1_exhaustive
+TP-032,gpio_mux,Pin mux,Pin mux scenario 5,DV 1.0,passing,debounce
+TP-033,gpio_mux,Interrupts,Interrupts scenario 1,DV 1.0,passing,mux4to1_exhaustive
+TP-034,gpio_mux,Interrupts,Interrupts scenario 2,DV 1.0,passing,irq_edge_level
+TP-035,gpio_mux,Interrupts,Interrupts scenario 3,DV 1.0,passing,debounce
+TP-036,gpio_mux,Interrupts,Interrupts scenario 4,DV 1.0,passing,irq_edge_level

@@ -16,6 +16,9 @@
 .rate-cell { display: flex; align-items: center; gap: 10px; }
 .gaps { font-size: .76rem; color: var(--muted); margin-top: 3px; }
 .counts { display: flex; flex-wrap: wrap; gap: 8px 22px; font-size: .9rem; color: var(--muted); }
+.owners-x td { padding-block: 9px; }
+.owners-x tr.grp td { border-top: 2px solid var(--line); }
+.owners-x .who { font: 600 1rem var(--font-display); }
 .counts b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
 </style>
 <!--BODY-->
@@ -35,6 +38,13 @@
     </div>
   </section>
 
+  <section class="band" id="owners-band" hidden>
+    <div class="band-head"><h2>Owners</h2><p id="own-note"></p></div>
+    <div class="panel">
+      <div class="scroll"><table class="portfolio owners-x" id="owners"></table></div>
+    </div>
+  </section>
+
   <footer id="footer"></footer>
 </div>
 
@@ -48,6 +58,39 @@
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
   function pct(x, d) { return x == null ? "–" : (100 * x).toFixed(d == null ? 1 : d) + "%"; }
   function days(a, b) { return Math.round((new Date(b + "T00:00:00Z") - new Date(a + "T00:00:00Z")) / 864e5); }
+
+  var MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  function shortDate(iso) { var p = iso.split("-"); return MON[+p[1] - 1] + " " + (+p[2]); }
+  var FC_TEXT = { met: "Met", on_track: "On track", at_risk: "At risk", stalled: "Stalled", projected: "Projected", unknown: "No forecast" };
+  function fcPill(f) {
+    if (!f) return "";
+    var tip = f.status === "met" ? "Last three runs average at or above the bar" : f.status === "stalled" ? "Pass rate is not improving over recent runs"
+      : f.eta ? "Trend reaches the bar around " + f.eta + (f.due ? "; due " + f.due : "") : "Not enough runs to project";
+    return "<span class=\"fc " + f.status + "\" style=\"margin-top:4px\" title=\"" + esc(tip) + "\">" + (FC_TEXT[f.status] || f.status) + (f.eta && f.status !== "met" ? " · " + shortDate(f.eta) : "") + "</span>";
+  }
+
+  function renderOwners() {
+    var rows = D.owners || [];
+    $("owners-band").hidden = !rows.length;
+    if (!rows.length) return;
+    rows = rows.slice().sort(function (a, b) { return a.owner.toLowerCase() < b.owner.toLowerCase() ? -1 : a.owner.toLowerCase() > b.owner.toLowerCase() ? 1 : a.project < b.project ? -1 : 1; });
+    var h = "<thead><tr><th>Owner</th><th>Project</th><th>Tests passing this week</th><th>Weekly target</th><th class=\"r\">New fails</th><th class=\"r\">Fixed</th><th>Longest failing</th><th class=\"r\">Open bugs</th><th>Forecast</th></tr></thead><tbody>";
+    var prev = null, met = 0, withT = 0, people = {};
+    rows.forEach(function (r) {
+      var d = r.tp_e - r.tp_s; people[r.owner] = 1;
+      if (r.target != null) { withT++; if (r.tp_e >= r.target) met++; }
+      h += "<tr" + (r.owner !== prev && prev !== null ? " class=\"grp\"" : "") + "><td>" + (r.owner !== prev ? "<span class=\"who\">" + esc(r.owner) + "</span>" : "") + "</td>" +
+        "<td><a class=\"proj\" style=\"font-size:.92rem\" href=\"" + esc(r.href) + "\">" + esc(r.project) + "</a><div class=\"small\">week ending " + esc(shortDate(r.week_end)) + "</div></td>" +
+        "<td class=\"num\">" + (r.first_week ? "" : "<span class=\"muted\">" + r.tp_s + " → </span>") + "<b>" + r.tp_e + "</b><span class=\"muted\"> / " + r.ran_e + "</span>" + (r.first_week ? "" : " <span class=\"" + (d > 0 ? "up" : d < 0 ? "down" : "muted") + "\">" + (d >= 0 ? "+" : "−") + Math.abs(d) + "</span>") + "</td>" +
+        "<td>" + (r.target == null ? "<span class=\"muted\">–</span>" : "<span class=\"pill " + (r.tp_e >= r.target ? "ok" : r.tp_e >= r.target - 2 ? "warn" : "bad") + "\">" + r.tp_e + " / " + r.target + "</span>") + "</td>" +
+        "<td class=\"r " + (r.new_fail ? "down" : "muted") + "\">" + r.new_fail + "</td><td class=\"r " + (r.fixed ? "up" : "muted") + "\">" + r.fixed + "</td>" +
+        "<td>" + (r.oldest ? "<b class=\"num" + (r.stuck ? " down" : "") + "\">" + r.oldest.days + "d</b> <span class=\"mono\" style=\"font-size:.78rem\">" + esc(r.oldest.test) + "</span>" : "<span class=\"muted\">none</span>") + "</td>" +
+        "<td class=\"r num\">" + r.bug_unresolved + "</td><td>" + fcPill(r.forecast) + "</td></tr>";
+      prev = r.owner;
+    });
+    $("owners").innerHTML = h + "</tbody>";
+    $("own-note").textContent = Object.keys(people).length + " people across " + D.projects.filter(function (p) { return !p.error; }).length + " projects, latest week of each." + (withT ? " " + met + " of " + withT + " weekly targets met." : "");
+  }
 
   function spark(values) {
     var w = 96, h = 24, v = values.filter(function (x) { return x != null; });
@@ -68,7 +111,7 @@
     "<span><b>" + s1 + "</b> unresolved S1 bug" + (s1 === 1 ? "" : "s") + "</span>" +
     (bad ? "<span><b>" + bad + "</b> with unreadable inputs</span>" : "");
 
-  var h = "<thead><tr><th>Project</th><th>Next milestone</th><th>Pass rate</th><th class=\"r\">Coverage at target</th><th class=\"r\">S1 / S2 open</th><th class=\"r\">Testplan passing</th><th>Latest run</th></tr></thead><tbody>";
+  var h = "<thead><tr><th>Project</th><th>Next milestone</th><th>Pass rate and forecast</th><th class=\"r\">Coverage at target</th><th class=\"r\">S1 / S2 open</th><th class=\"r\">Testplan passing</th><th>Latest run</th></tr></thead><tbody>";
   D.projects.forEach(function (p) {
     if (p.error) {
       h += "<tr class=\"err\"><td><span class=\"proj\" style=\"font:600 1.05rem var(--font-display)\">" + esc(p.name) + "</span></td><td colspan=\"6\"><span class=\"pill bad\">inputs could not be read</span><div class=\"gaps sig\">" + esc(p.error) + "</div></td></tr>";
@@ -80,7 +123,7 @@
       "<td>" + (p.milestone ? "<div style=\"display:flex;gap:8px;align-items:center;flex-wrap:wrap\"><b>" + esc(p.milestone) + "</b><span class=\"pill " + (p.met ? "ok" : "bad") + "\">" + (p.met ? "ready" : p.checks_ok + " of " + p.checks + " met") + "</span></div>" +
         (p.due ? "<div class=\"small\">due " + esc(p.due) + "</div>" : "") +
         (p.failing.length ? "<div class=\"gaps\">Short on: " + p.failing.map(esc).join("; ") + "</div>" : "") : "<span class=\"muted\">none set</span>") + "</td>" +
-      "<td><div class=\"rate-cell\"><span class=\"big\">" + pct(p.rate) + "</span>" + spark(p.rates) + "</div><div class=\"small\">" + p.sims + " sims</div></td>" +
+      "<td><div class=\"rate-cell\"><span class=\"big\">" + pct(p.rate) + "</span>" + spark(p.rates) + "</div><div class=\"small\">" + p.sims + " sims</div>" + fcPill(p.forecast) + "</td>" +
       "<td class=\"r\"><span class=\"big\">" + p.cov_met + "</span><span class=\"muted\"> / " + p.cov_cells + "</span></td>" +
       "<td class=\"r\"><span class=\"big" + (p.bugs.S1 ? " down" : "") + "\">" + p.bugs.S1 + "</span><span class=\"muted\"> / " + p.bugs.S2 + "</span></td>" +
       "<td class=\"r\"><span class=\"big\">" + (p.tp_items ? pct(p.tp_passing / p.tp_items, 0) : "–") + "</span><div class=\"small\">" + p.tp_passing + " of " + p.tp_items + "</div></td>" +
@@ -88,6 +131,7 @@
       "</tr>";
   });
   $("portfolio").innerHTML = h + "</tbody>";
+  renderOwners();
   $("footer").textContent = "Generated " + D.generated + " by socdash.py build-all. Each project's data and config.json live in its own folder.";
 })();
 </script>

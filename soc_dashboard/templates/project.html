@@ -4,6 +4,10 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600&display=swap">
 <style>
 /*__CSS__*/
+.minis { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 180px), 1fr)); gap: 16px; }
+.mini { display: grid; gap: 2px; align-content: start; }
+.mini .top { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; font-size: .84rem; }
+.mini .top b { font: 600 1.05rem var(--font-display); font-variant-numeric: tabular-nums; }
 </style>
 <!--BODY-->
 <div class="wrap">
@@ -53,6 +57,10 @@
           <span class="legend"><span><i style="background:var(--pass-soft);outline:1px solid var(--pass)"></i>at target</span><span><i style="background:var(--warn-soft);outline:1px solid var(--warn)"></i>within milestone allowance</span><span><i style="background:var(--fail-soft);outline:1px solid var(--fail)"></i>short</span></span></div>
         <div class="scroll" id="covmatrix"></div>
       </div>
+      <div class="panel span-12" id="covtrend-panel" hidden>
+        <div class="panel-head"><h3>Coverage over time</h3><span class="legend"><span><i style="background:var(--accent)"></i>percent covered</span><span><i style="background:var(--ink);height:2px"></i>target</span></span></div>
+        <div class="minis" id="covtrend"></div>
+      </div>
     </div>
   </section>
 
@@ -69,11 +77,20 @@
         <div class="panel-head"><h3>Unresolved bugs</h3><span class="muted" style="font-size:.78rem">Fixed means the RTL change is in and awaits a clean regression</span></div>
         <div class="scroll" id="buglist"></div>
       </div>
+      <div class="panel span-12">
+        <div class="panel-head"><h3>Time to fix</h3><span class="muted" style="font-size:.78rem">Days from opened to closed for closed bugs, and the age of bugs still open</span></div>
+        <div class="scroll" id="fixspeed"></div>
+      </div>
     </div>
   </section>
 
   <section class="band" id="testplan">
     <div class="band-head"><h2>Testplan</h2><p id="tp-note"></p></div>
+    <div class="panel" id="tptrend-panel" hidden>
+      <div class="panel-head"><h3>Items by status at the end of each week</h3>
+        <span class="legend"><span><i class="s-passing"></i>passing</span><span><i class="s-written"></i>written, not passing</span><span><i class="s-planned"></i>planned</span></span></div>
+      <div id="tptrend"></div>
+    </div>
     <div class="panel">
       <div class="panel-head"><h3>Items by feature</h3>
         <span class="legend"><span><i class="s-passing"></i>passing</span><span><i class="s-written"></i>written, not passing</span><span><i class="s-planned"></i>planned</span></span></div>
@@ -102,6 +119,89 @@
   function pct(x, d) { return x == null ? "–" : (100 * x).toFixed(d == null ? 1 : d) + "%"; }
   function shortDate(iso) { var p = iso.split("-"); return ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][+p[1] - 1] + " " + (+p[2]); }
   function slug(b) { return b.replace(/[^A-Za-z0-9]+/g, "-"); }
+  var FC_TEXT = { met: "Met", on_track: "On track", at_risk: "At risk", stalled: "Stalled", projected: "Projected", unknown: "No forecast" };
+  function fcPill(f) {
+    if (!f) return "";
+    var t = "Forecast: " + (FC_TEXT[f.status] || f.status) + (f.eta && f.status !== "met" ? " · " + shortDate(f.eta) : "");
+    var tip = f.status === "met" ? "Last three runs average at or above the bar" : f.status === "stalled" ? "Pass rate is not improving over recent runs"
+      : f.eta ? "Trend reaches the bar around " + f.eta + (f.due ? "; due " + f.due : "") : "Not enough runs to project";
+    return "<span class=\"fc " + f.status + "\" style=\"margin-top:4px\" title=\"" + esc(tip) + "\">" + t + "</span>";
+  }
+
+  function renderCovTrend() {
+    var tr = S().coverage_trend;
+    $("covtrend-panel").hidden = !tr;
+    if (!tr) return;
+    $("covtrend").innerHTML = "";
+    D.metrics.forEach(function (m) {
+      var pts = tr.filter(function (p) { return p.metrics[m]; }).map(function (p) { return { d: p.date, v: p.metrics[m].pct, t: p.metrics[m].target }; });
+      if (pts.length < 2) return;
+      var w = 200, h = 70, l = 4, r = 4, tp = 6, bt = 16, s = svg(w, h);
+      s.setAttribute("aria-label", m + " coverage over time");
+      var tgt = pts[pts.length - 1].t;
+      var vs = pts.map(function (p) { return p.v; }).concat([tgt]);
+      var lo = Math.max(0, Math.floor(Math.min.apply(null, vs) - 2)), hi = Math.min(100, Math.ceil(Math.max.apply(null, vs) + 1));
+      function x(i) { return l + i * (w - l - r) / (pts.length - 1); }
+      function y(v) { return tp + (hi - v) / ((hi - lo) || 1) * (h - tp - bt); }
+      el(s, "line", { x1: l, x2: w - r, y1: y(tgt), y2: y(tgt), stroke: "var(--ink)", "stroke-width": 1.5 });
+      el(s, "path", { d: "M" + pts.map(function (p, i) { return x(i) + "," + y(p.v); }).join("L") + "L" + x(pts.length - 1) + "," + (h - bt) + "L" + x(0) + "," + (h - bt) + "Z", fill: "var(--accent)", "fill-opacity": 0.12 });
+      el(s, "path", { d: "M" + pts.map(function (p, i) { return x(i) + "," + y(p.v); }).join("L"), fill: "none", stroke: "var(--accent)", "stroke-width": 2 });
+      pts.forEach(function (p, i) { var c = el(s, "circle", { cx: x(i), cy: y(p.v), r: i === pts.length - 1 ? 3.5 : 2, fill: "var(--accent)" }); el(c, "title", {}, p.d + ": " + p.v.toFixed(1) + "% (target " + p.t.toFixed(0) + "%)"); });
+      el(s, "text", { x: l, y: h - 3 }, shortDate(pts[0].d));
+      el(s, "text", { x: w - r, y: h - 3, "text-anchor": "end" }, shortDate(pts[pts.length - 1].d));
+      var first = pts[0].v, last = pts[pts.length - 1].v, d = last - first;
+      var perWeek = d / Math.max(1, (new Date(pts[pts.length - 1].d) - new Date(pts[0].d)) / 6048e5);
+      var div = document.createElement("div"); div.className = "mini";
+      div.innerHTML = "<div class=\"top\"><span>" + m + "</span><b>" + last.toFixed(1) + "%</b></div><div class=\"top\" style=\"font-size:.76rem\"><span class=\"" + (d >= 0 ? "up" : "down") + "\">" + (d >= 0 ? "+" : "−") + Math.abs(d).toFixed(1) + " pts since " + shortDate(pts[0].d) + "</span><span class=\"muted\">target " + tgt.toFixed(0) + "</span></div>";
+      div.appendChild(s);
+      var gap = tgt - last, wk = perWeek > 0.05 ? Math.ceil(gap / perWeek) : null;
+      var note = document.createElement("span"); note.className = "muted"; note.style.fontSize = ".74rem";
+      note.textContent = gap <= 0 ? "At target" : wk ? "About " + wk + " week" + (wk === 1 ? "" : "s") + " to target at " + perWeek.toFixed(1) + " pts a week" : "Not moving toward target";
+      div.appendChild(note);
+      $("covtrend").appendChild(div);
+    });
+  }
+
+  function renderFixSpeed() {
+    var rows = S().fix_speed;
+    var h = "<table><thead><tr><th>Severity</th><th class=\"r\">Closed</th><th class=\"r\">Median days to fix</th><th class=\"r\">90% fixed within</th><th class=\"r\">Still open</th><th class=\"r\">Oldest open</th></tr></thead><tbody>";
+    rows.forEach(function (r) {
+      var late = r.oldest_open != null && r.median != null && r.oldest_open > r.median;
+      h += "<tr><td><span class=\"sev " + r.severity + "\">" + r.severity + "</span></td><td class=\"r\">" + r.closed + "</td><td class=\"r\">" + (r.median == null ? "–" : r.median + "d") + "</td><td class=\"r\">" + (r.p90 == null ? "–" : r.p90 + "d") + "</td><td class=\"r\">" + r.open + "</td><td class=\"r" + (late ? " down" : "") + "\"" + (late ? " title=\"Open longer than the median fix time\"" : "") + ">" + (r.oldest_open == null ? "–" : r.oldest_open + "d") + "</td></tr>";
+    });
+    $("fixspeed").innerHTML = h + "</tbody></table>";
+  }
+
+  function renderTpTrend() {
+    var tr = S().testplan_trend;
+    $("tptrend-panel").hidden = !tr;
+    if (!tr) return;
+    var W = 1100, H = 220, Lm = 34, R = 12, T = 14, B = 26, s = svg(W, H);
+    s.setAttribute("aria-label", "Testplan items by status each week");
+    var max = Math.max.apply(null, tr.map(function (p) { return p.planned + p.written + p.passing; }).concat([1]));
+    var step = max <= 20 ? 5 : max <= 60 ? 10 : max <= 150 ? 25 : 50, top = Math.ceil(max / step) * step;
+    function y(v) { return T + (1 - v / top) * (H - T - B); }
+    for (var g = 0; g <= top; g += step) { el(s, "line", { x1: Lm, x2: W - R, y1: y(g), y2: y(g), "class": "grid-line" }); el(s, "text", { x: Lm - 6, y: y(g) + 4, "text-anchor": "end" }, g); }
+    var cw = (W - Lm - R) / tr.length, bw = Math.min(44, cw * 0.55);
+    tr.forEach(function (p, i) {
+      var x0 = Lm + cw * i + (cw - bw) / 2, base = 0;
+      [["passing", "var(--pass)"], ["written", "var(--accent)"], ["planned", "var(--planned)"]].forEach(function (k) {
+        var v = p[k[0]]; if (!v) return;
+        var r = el(s, "rect", { x: x0, y: y(base + v), width: bw, height: y(base) - y(base + v), fill: k[1] }); el(r, "title", {}, "Week ending " + p.date + ": " + v + " " + k[0]);
+        base += v;
+      });
+      if (p.passing) el(s, "text", { x: x0 + bw / 2, y: y(p.passing) - 4, "text-anchor": "middle", style: "fill:var(--ink);font-weight:600;paint-order:stroke;stroke:var(--surface);stroke-width:3px" }, p.passing);
+      el(s, "text", { x: x0 + bw / 2, y: H - 8, "text-anchor": "middle" }, shortDate(p.date));
+    });
+    $("tptrend").innerHTML = ""; $("tptrend").appendChild(s);
+    if (tr.length > 1) {
+      var last = tr[tr.length - 1], prev = tr[tr.length - 2], first = tr[0], dp = last.passing - prev.passing;
+      var note = document.createElement("p"); note.className = "muted"; note.style.cssText = "margin:0;font-size:.82rem";
+      note.textContent = "Last week " + (dp >= 0 ? "+" : "−") + Math.abs(dp) + " items passing. Since " + shortDate(first.date) + ": " + first.passing + " → " + last.passing + " passing, " + first.planned + " → " + last.planned + " not started.";
+      $("tptrend").appendChild(note);
+    }
+  }
+
   function svg(w, h, cls) { var s = document.createElementNS(SVGNS, "svg"); s.setAttribute("viewBox", "0 0 " + w + " " + h); s.setAttribute("class", cls || "chart"); s.setAttribute("role", "img"); return s; }
   function el(parent, tag, attrs, text) {
     var e = document.createElementNS(SVGNS, tag);
@@ -157,7 +257,7 @@
     var css = getComputedStyle(document.documentElement);
     var items = [
       { label: "Pass rate, latest run", value: pct(last && last.rate),
-        sub: (last ? last.pass + " of " + last.total + " sims" : "") + (delta != null ? " · <span class=\"" + (delta >= 0 ? "up" : "down") + "\">" + (delta >= 0 ? "▲ " : "▼ ") + Math.abs(100 * delta).toFixed(1) + " pts</span>" : ""),
+        sub: (last ? last.pass + " of " + last.total + " sims" : "") + (delta != null ? " · <span class=\"" + (delta >= 0 ? "up" : "down") + "\">" + (delta >= 0 ? "▲ " : "▼ ") + Math.abs(100 * delta).toFixed(1) + " pts</span>" : "") + "<br>" + fcPill(s.forecast),
         spark: sparkline(t.map(function (x) { return x.rate; }), css.getPropertyValue("--accent").trim() || "#1f5fbf"),
         pill: last && last.rate != null ? "<span class=\"pill " + rateClass(last.rate, need) + "\">need " + pct(need, 0) + "</span>" : "" },
       { label: "Coverage cells at target", value: cov.cells_met + "<span class=\"muted\" style=\"font-size:1.1rem\"> / " + cov.cells + "</span>",
@@ -392,6 +492,7 @@
   function renderAll() {
     renderHeader(); renderKpis(); renderTrend(); renderBlocks(); renderSignatures(); renderIntermittent();
     renderCoverage(); renderBugs(); renderTestplan(); renderSignoff();
+    renderCovTrend(); renderFixSpeed(); renderTpTrend();
     $("footer").textContent = "Generated " + D.generated + " by socdash.py from " + D.sources.join(", ") + ".";
     $("intermittent-title").textContent = "Intermittent tests, last " + D.window + " runs";
     if (D.regression_href) { $("reg-link").href = D.regression_href + (scope === "all" ? "" : "#" + regNode(scope)); $("reg-link").hidden = false; }

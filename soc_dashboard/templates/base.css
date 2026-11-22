@@ -181,3 +181,10 @@ a.home::before { content: "← "; }
 a.go { color: var(--accent); text-decoration: none; font-weight: 500; font-size: .88rem; margin-left: auto; }
 a.go:hover { text-decoration: underline; }
 a.go::after { content: " →"; }
+.fc { display: inline-flex; align-items: center; gap: 5px; font: 500 .75rem var(--font-body); padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.fc::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.fc.met { color: var(--pass); background: var(--pass-soft); }
+.fc.on_track, .fc.projected { color: var(--accent); background: var(--accent-soft); }
+.fc.at_risk { color: var(--fail); background: var(--fail-soft); }
+.fc.stalled { color: var(--warn); background: var(--warn-soft); }
+.fc.unknown { color: var(--muted); background: var(--sunken); }

@@ -1,44 +1,44 @@
 id,title,block,severity,status,opened,closed
-LY-40,isp pipeline issue found in early bring-up,isp_pipeline,S3,closed,2026-09-03,2026-09-26
-LY-41,cpu cluster issue found in early bring-up,cpu_cluster,S3,closed,2026-09-02,2026-09-08
-LY-42,gpu core issue found in early bring-up,gpu_core,S2,closed,2026-10-14,2026-10-27
-LY-43,gpu core issue found in early bring-up,gpu_core,S3,closed,2026-09-15,2026-09-23
-LY-44,mipi csi issue found in early bring-up,mipi_csi,S3,closed,2026-10-19,2026-11-07
-LY-45,gpu core issue found in early bring-up,gpu_core,S3,closed,2026-09-15,2026-10-10
-LY-46,cpu cluster issue found in early bring-up,cpu_cluster,S4,closed,2026-10-15,2026-11-01
-LY-47,isp pipeline issue found in early bring-up,isp_pipeline,S3,closed,2026-10-08,2026-11-01
-LY-48,cpu cluster issue found in early bring-up,cpu_cluster,S3,closed,2026-09-07,2026-09-15
-LY-49,mipi csi issue found in early bring-up,mipi_csi,S2,closed,2026-09-22,2026-09-28
-LY-50,mipi csi issue found in early bring-up,mipi_csi,S3,closed,2026-10-05,2026-10-18
-LY-51,pmu issue found in early bring-up,pmu,S4,closed,2026-09-10,2026-09-18
-LY-52,pmu issue found in early bring-up,pmu,S3,closed,2026-10-12,2026-10-16
-LY-53,mipi csi issue found in early bring-up,mipi_csi,S3,closed,2026-10-21,2026-10-26
-LY-54,isp pipeline issue found in early bring-up,isp_pipeline,S3,closed,2026-09-06,2026-09-21
-LY-55,cpu cluster issue found in early bring-up,cpu_cluster,S3,closed,2026-09-19,2026-09-25
-LY-56,gpu core issue found in early bring-up,gpu_core,S3,closed,2026-09-17,2026-10-07
-LY-57,isp pipeline issue found in early bring-up,isp_pipeline,S4,closed,2026-10-19,2026-11-03
-LY-58,mipi csi issue found in early bring-up,mipi_csi,S3,closed,2026-10-15,2026-10-20
-LY-59,cpu cluster issue found in early bring-up,cpu_cluster,S4,closed,2026-09-03,2026-09-15
-LY-60,pmu issue found in early bring-up,pmu,S3,closed,2026-10-07,2026-10-16
-LY-61,pmu issue found in early bring-up,pmu,S3,closed,2026-09-15,2026-09-20
-LY-62,mipi csi issue found in early bring-up,mipi_csi,S3,closed,2026-09-30,2026-10-07
-LY-63,mipi csi issue found in early bring-up,mipi_csi,S3,closed,2026-10-09,2026-10-30
-LY-64,lpddr5 ctrl issue found in early bring-up,lpddr5_ctrl,S2,closed,2026-09-21,2026-10-08
-LY-65,isp pipeline issue found in early bring-up,isp_pipeline,S3,closed,2026-09-16,2026-10-04
-LY-66,cpu cluster issue found in early bring-up,cpu_cluster,S3,closed,2026-10-06,2026-10-17
-LY-67,pmu issue found in early bring-up,pmu,S2,closed,2026-10-06,2026-10-29
-LY-68,isp pipeline issue found in early bring-up,isp_pipeline,S3,closed,2026-10-15,2026-11-07
-LY-69,isp pipeline issue found in early bring-up,isp_pipeline,S2,closed,2026-09-04,2026-09-15
-LY-70,isp pipeline issue found in early bring-up,isp_pipeline,S3,closed,2026-09-11,2026-10-05
-LY-71,isp pipeline issue found in early bring-up,isp_pipeline,S2,closed,2026-09-15,2026-09-19
-LY-72,gpu core issue found in early bring-up,gpu_core,S4,closed,2026-09-10,2026-09-27
-LY-73,gpu core issue found in early bring-up,gpu_core,S2,closed,2026-10-22,2026-11-10
-LY-74,cpu cluster issue found in early bring-up,cpu_cluster,S2,closed,2026-10-09,2026-10-17
-LY-75,lpddr5 ctrl issue found in early bring-up,lpddr5_ctrl,S3,closed,2026-09-14,2026-09-25
-LY-76,isp pipeline issue found in early bring-up,isp_pipeline,S3,closed,2026-10-10,2026-10-28
-LY-77,gpu core issue found in early bring-up,gpu_core,S2,closed,2026-09-03,2026-09-21
-LY-78,lpddr5 ctrl issue found in early bring-up,lpddr5_ctrl,S4,closed,2026-09-26,2026-10-21
-LY-79,gpu core issue found in early bring-up,gpu_core,S3,closed,2026-10-06,2026-10-21
+LY-40,gpu core issue found in early bring-up,gpu_core,S2,closed,2026-10-02,2026-10-23
+LY-41,gpu core issue found in early bring-up,gpu_core,S3,closed,2026-10-20,2026-11-11
+LY-42,gpu core issue found in early bring-up,gpu_core,S3,closed,2026-09-22,2026-09-28
+LY-43,pmu issue found in early bring-up,pmu,S3,closed,2026-09-25,2026-10-18
+LY-44,gpu core issue found in early bring-up,gpu_core,S3,closed,2026-09-22,2026-09-27
+LY-45,cpu cluster issue found in early bring-up,cpu_cluster,S4,closed,2026-09-03,2026-09-15
+LY-46,pmu issue found in early bring-up,pmu,S3,closed,2026-10-07,2026-10-16
+LY-47,pmu issue found in early bring-up,pmu,S3,closed,2026-09-15,2026-09-20
+LY-48,mipi csi issue found in early bring-up,mipi_csi,S3,closed,2026-09-30,2026-10-07
+LY-49,mipi csi issue found in early bring-up,mipi_csi,S3,closed,2026-10-09,2026-10-30
+LY-50,lpddr5 ctrl issue found in early bring-up,lpddr5_ctrl,S2,closed,2026-09-21,2026-10-08
+LY-51,isp pipeline issue found in early bring-up,isp_pipeline,S3,closed,2026-09-16,2026-10-04
+LY-52,cpu cluster issue found in early bring-up,cpu_cluster,S3,closed,2026-10-06,2026-10-17
+LY-53,pmu issue found in early bring-up,pmu,S2,closed,2026-10-06,2026-10-29
+LY-54,isp pipeline issue found in early bring-up,isp_pipeline,S3,closed,2026-10-15,2026-11-07
+LY-55,isp pipeline issue found in early bring-up,isp_pipeline,S2,closed,2026-09-04,2026-09-15
+LY-56,isp pipeline issue found in early bring-up,isp_pipeline,S3,closed,2026-09-11,2026-10-05
+LY-57,isp pipeline issue found in early bring-up,isp_pipeline,S2,closed,2026-09-15,2026-09-19
+LY-58,gpu core issue found in early bring-up,gpu_core,S4,closed,2026-09-10,2026-09-27
+LY-59,gpu core issue found in early bring-up,gpu_core,S2,closed,2026-10-22,2026-11-10
+LY-60,cpu cluster issue found in early bring-up,cpu_cluster,S2,closed,2026-10-09,2026-10-17
+LY-61,lpddr5 ctrl issue found in early bring-up,lpddr5_ctrl,S3,closed,2026-09-14,2026-09-25
+LY-62,isp pipeline issue found in early bring-up,isp_pipeline,S3,closed,2026-10-10,2026-10-28
+LY-63,gpu core issue found in early bring-up,gpu_core,S2,closed,2026-09-03,2026-09-21
+LY-64,lpddr5 ctrl issue found in early bring-up,lpddr5_ctrl,S4,closed,2026-09-26,2026-10-21
+LY-65,gpu core issue found in early bring-up,gpu_core,S3,closed,2026-10-06,2026-10-21
+LY-66,gpu core issue found in early bring-up,gpu_core,S3,closed,2026-10-23,2026-10-30
+LY-67,gpu core issue found in early bring-up,gpu_core,S3,closed,2026-09-20,2026-10-01
+LY-68,mipi csi issue found in early bring-up,mipi_csi,S3,closed,2026-10-23,2026-11-13
+LY-69,mipi csi issue found in early bring-up,mipi_csi,S3,closed,2026-10-08,2026-10-20
+LY-70,mipi csi issue found in early bring-up,mipi_csi,S2,closed,2026-10-20,2026-10-29
+LY-71,gpu core issue found in early bring-up,gpu_core,S3,closed,2026-10-14,2026-10-31
+LY-72,mipi csi issue found in early bring-up,mipi_csi,S4,closed,2026-09-29,2026-10-19
+LY-73,pmu issue found in early bring-up,pmu,S3,closed,2026-09-26,2026-10-19
+LY-74,mipi csi issue found in early bring-up,mipi_csi,S2,closed,2026-10-04,2026-10-26
+LY-75,lpddr5 ctrl issue found in early bring-up,lpddr5_ctrl,S3,closed,2026-10-13,2026-10-26
+LY-76,mipi csi issue found in early bring-up,mipi_csi,S3,closed,2026-09-23,2026-09-27
+LY-77,lpddr5 ctrl issue found in early bring-up,lpddr5_ctrl,S4,closed,2026-10-18,2026-11-06
+LY-78,cpu cluster issue found in early bring-up,cpu_cluster,S4,closed,2026-09-30,2026-10-21
+LY-79,lpddr5 ctrl issue found in early bring-up,lpddr5_ctrl,S3,closed,2026-09-30,2026-10-04
 LY-201,Compute dispatch hangs when workgroup size is 1024,gpu_core,S2,open,2026-11-16,
 LY-202,Link ECC syndrome dropped during DVFSC switch,lpddr5_ctrl,S2,fixed,2026-11-13,
 LY-203,HDR merge clips highlights one LSB early,isp_pipeline,S3,open,2026-11-17,

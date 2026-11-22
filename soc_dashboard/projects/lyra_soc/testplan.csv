@@ -1,90 +1,82 @@
 id,block,feature,item,milestone,status,test
-TP-001,cpu_cluster,Boot and reset,Boot and reset scenario 1,DV 0.8,passing,irq_routing
+TP-001,cpu_cluster,Boot and reset,Boot and reset scenario 1,DV 0.8,passing,secure_world_entry
 TP-002,cpu_cluster,Boot and reset,Boot and reset scenario 2,DV 0.8,passing,cache_coherency
-TP-003,cpu_cluster,Boot and reset,Boot and reset scenario 3,DV 0.8,passing,cache_coherency
-TP-004,cpu_cluster,Boot and reset,Boot and reset scenario 4,DV 1.0,passing,cache_coherency
-TP-005,cpu_cluster,Coherency,Coherency scenario 1,DV 0.8,passing,secure_world_entry
-TP-006,cpu_cluster,Coherency,Coherency scenario 2,DV 0.8,passing,cache_coherency
-TP-007,cpu_cluster,Coherency,Coherency scenario 3,DV 0.8,passing,irq_routing
-TP-008,cpu_cluster,Coherency,Coherency scenario 4,DV 1.0,passing,dvfs_switch
-TP-009,cpu_cluster,Coherency,Coherency scenario 5,DV 1.0,passing,dvfs_switch
-TP-010,cpu_cluster,Power states,Power states scenario 1,DV 0.8,passing,irq_routing
-TP-011,cpu_cluster,Power states,Power states scenario 2,DV 0.8,passing,irq_routing
-TP-012,cpu_cluster,Power states,Power states scenario 3,DV 0.8,passing,dvfs_switch
-TP-013,cpu_cluster,Power states,Power states scenario 4,DV 1.0,passing,irq_routing
-TP-014,cpu_cluster,Power states,Power states scenario 5,DV 1.0,passing,cache_coherency
-TP-015,cpu_cluster,Power states,Power states scenario 6,DV 1.0,written,smoke_boot
-TP-016,gpu_core,Shader,Shader scenario 1,DV 0.8,passing,shader_alu
-TP-017,gpu_core,Shader,Shader scenario 2,DV 0.8,passing,compute_dispatch
-TP-018,gpu_core,Shader,Shader scenario 3,DV 0.8,passing,compute_dispatch
-TP-019,gpu_core,Shader,Shader scenario 4,DV 1.0,written,shader_alu
-TP-020,gpu_core,Shader,Shader scenario 5,DV 1.0,passing,shader_alu
-TP-021,gpu_core,Shader,Shader scenario 6,DV 1.0,passing,mmu_fault
-TP-022,gpu_core,Texture,Texture scenario 1,DV 0.8,passing,mmu_fault
-TP-023,gpu_core,Texture,Texture scenario 2,DV 0.8,passing,texture_fetch
-TP-024,gpu_core,Texture,Texture scenario 3,DV 0.8,passing,texture_fetch
-TP-025,gpu_core,Texture,Texture scenario 4,DV 1.0,written,compute_dispatch
-TP-026,gpu_core,Texture,Texture scenario 5,DV 1.0,written,mmu_fault
-TP-027,gpu_core,Rasterizer,Rasterizer scenario 1,DV 0.8,passing,texture_fetch
-TP-028,gpu_core,Rasterizer,Rasterizer scenario 2,DV 0.8,passing,shader_alu
-TP-029,gpu_core,Rasterizer,Rasterizer scenario 3,DV 0.8,passing,texture_fetch
-TP-030,gpu_core,Rasterizer,Rasterizer scenario 4,DV 1.0,passing,mmu_fault
-TP-031,gpu_core,Rasterizer,Rasterizer scenario 5,DV 1.0,passing,shader_alu
-TP-032,gpu_core,Memory,Memory scenario 1,DV 0.8,passing,raster_tiles
-TP-033,gpu_core,Memory,Memory scenario 2,DV 0.8,passing,texture_fetch
-TP-034,gpu_core,Memory,Memory scenario 3,DV 0.8,passing,texture_fetch
-TP-035,gpu_core,Memory,Memory scenario 4,DV 1.0,passing,shader_alu
-TP-036,isp_pipeline,Front end,Front end scenario 1,DV 0.8,passing,auto_white_balance
-TP-037,isp_pipeline,Front end,Front end scenario 2,DV 0.8,passing,scaler_bypass
-TP-038,isp_pipeline,Front end,Front end scenario 3,DV 0.8,passing,hdr_merge
-TP-039,isp_pipeline,Front end,Front end scenario 4,DV 1.0,passing,auto_white_balance
-TP-040,isp_pipeline,Front end,Front end scenario 5,DV 1.0,written,auto_white_balance
-TP-041,isp_pipeline,Front end,Front end scenario 6,DV 1.0,written,auto_white_balance
-TP-042,isp_pipeline,Color,Color scenario 1,DV 0.8,passing,bayer_demosaic
-TP-043,isp_pipeline,Color,Color scenario 2,DV 0.8,passing,scaler_bypass
-TP-044,isp_pipeline,Color,Color scenario 3,DV 0.8,passing,hdr_merge
-TP-045,isp_pipeline,Color,Color scenario 4,DV 1.0,written,hdr_merge
-TP-046,isp_pipeline,Color,Color scenario 5,DV 1.0,written,scaler_bypass
-TP-047,isp_pipeline,Color,Color scenario 6,DV 1.0,written,auto_white_balance
-TP-048,isp_pipeline,HDR,HDR scenario 1,DV 0.8,passing,hdr_merge
-TP-049,isp_pipeline,HDR,HDR scenario 2,DV 0.8,passing,auto_white_balance
-TP-050,isp_pipeline,HDR,HDR scenario 3,DV 0.8,passing,scaler_bypass
-TP-051,isp_pipeline,HDR,HDR scenario 4,DV 1.0,passing,lens_shading
-TP-052,isp_pipeline,Output,Output scenario 1,DV 0.8,passing,auto_white_balance
-TP-053,isp_pipeline,Output,Output scenario 2,DV 0.8,passing,hdr_merge
-TP-054,isp_pipeline,Output,Output scenario 3,DV 0.8,passing,scaler_bypass
-TP-055,lpddr5_ctrl,Training,Training scenario 1,DV 0.8,passing,refresh_per_bank
-TP-056,lpddr5_ctrl,Training,Training scenario 2,DV 0.8,passing,refresh_per_bank
-TP-057,lpddr5_ctrl,Training,Training scenario 3,DV 0.8,passing,dvfsc_switch
-TP-058,lpddr5_ctrl,Training,Training scenario 4,DV 1.0,passing,link_ecc
-TP-059,lpddr5_ctrl,Training,Training scenario 5,DV 1.0,passing,init_training
-TP-060,lpddr5_ctrl,Training,Training scenario 6,DV 1.0,passing,wck_sync
-TP-061,lpddr5_ctrl,Refresh,Refresh scenario 1,DV 0.8,passing,link_ecc
-TP-062,lpddr5_ctrl,Refresh,Refresh scenario 2,DV 0.8,passing,wck_sync
-TP-063,lpddr5_ctrl,Refresh,Refresh scenario 3,DV 0.8,passing,link_ecc
-TP-064,lpddr5_ctrl,Refresh,Refresh scenario 4,DV 1.0,passing,refresh_per_bank
-TP-065,lpddr5_ctrl,Refresh,Refresh scenario 5,DV 1.0,written,wck_sync
-TP-066,lpddr5_ctrl,Refresh,Refresh scenario 6,DV 1.0,passing,dvfsc_switch
-TP-067,lpddr5_ctrl,Link ECC,Link ECC scenario 1,DV 0.8,passing,refresh_per_bank
-TP-068,lpddr5_ctrl,Link ECC,Link ECC scenario 2,DV 0.8,passing,link_ecc
-TP-069,lpddr5_ctrl,Link ECC,Link ECC scenario 3,DV 0.8,passing,dvfsc_switch
-TP-070,lpddr5_ctrl,Link ECC,Link ECC scenario 4,DV 1.0,passing,init_training
-TP-071,lpddr5_ctrl,Link ECC,Link ECC scenario 5,DV 1.0,passing,init_training
-TP-072,mipi_csi,PHY,PHY scenario 1,DV 0.8,passing,virtual_channels
-TP-073,mipi_csi,PHY,PHY scenario 2,DV 0.8,passing,virtual_channels
-TP-074,mipi_csi,PHY,PHY scenario 3,DV 0.8,passing,virtual_channels
-TP-075,mipi_csi,PHY,PHY scenario 4,DV 1.0,passing,crc_error_inject
-TP-076,mipi_csi,Protocol,Protocol scenario 1,DV 0.8,passing,lane_deskew
-TP-077,mipi_csi,Protocol,Protocol scenario 2,DV 0.8,passing,ulps_entry_exit
-TP-078,mipi_csi,Protocol,Protocol scenario 3,DV 0.8,passing,crc_error_inject
-TP-079,mipi_csi,Protocol,Protocol scenario 4,DV 1.0,passing,lane_deskew
-TP-080,pmu,Sequencing,Sequencing scenario 1,DV 0.8,passing,wakeup_sources
-TP-081,pmu,Sequencing,Sequencing scenario 2,DV 0.8,passing,wakeup_sources
-TP-082,pmu,Sequencing,Sequencing scenario 3,DV 0.8,passing,power_domain_seq
-TP-083,pmu,Sequencing,Sequencing scenario 4,DV 1.0,passing,retention_save_restore
-TP-084,pmu,Wakeup,Wakeup scenario 1,DV 0.8,passing,power_domain_seq
-TP-085,pmu,Wakeup,Wakeup scenario 2,DV 0.8,passing,power_domain_seq
-TP-086,pmu,Wakeup,Wakeup scenario 3,DV 0.8,passing,wakeup_sources
-TP-087,pmu,Wakeup,Wakeup scenario 4,DV 1.0,passing,wakeup_sources
-TP-088,pmu,Wakeup,Wakeup scenario 5,DV 1.0,passing,retention_save_restore
-TP-089,pmu,Wakeup,Wakeup scenario 6,DV 1.0,passing,retention_save_restore
+TP-003,cpu_cluster,Boot and reset,Boot and reset scenario 3,DV 0.8,passing,secure_world_entry
+TP-004,cpu_cluster,Coherency,Coherency scenario 1,DV 0.8,passing,cache_coherency
+TP-005,cpu_cluster,Coherency,Coherency scenario 2,DV 0.8,passing,dvfs_switch
+TP-006,cpu_cluster,Coherency,Coherency scenario 3,DV 0.8,passing,secure_world_entry
+TP-007,cpu_cluster,Coherency,Coherency scenario 4,DV 1.0,passing,irq_routing
+TP-008,cpu_cluster,Power states,Power states scenario 1,DV 0.8,passing,smoke_boot
+TP-009,cpu_cluster,Power states,Power states scenario 2,DV 0.8,passing,cache_coherency
+TP-010,cpu_cluster,Power states,Power states scenario 3,DV 0.8,passing,secure_world_entry
+TP-011,cpu_cluster,Power states,Power states scenario 4,DV 1.0,passing,smoke_boot
+TP-012,gpu_core,Shader,Shader scenario 1,DV 0.8,passing,raster_tiles
+TP-013,gpu_core,Shader,Shader scenario 2,DV 0.8,passing,texture_fetch
+TP-014,gpu_core,Shader,Shader scenario 3,DV 0.8,passing,texture_fetch
+TP-015,gpu_core,Shader,Shader scenario 4,DV 1.0,passing,shader_alu
+TP-016,gpu_core,Texture,Texture scenario 1,DV 0.8,passing,texture_fetch
+TP-017,gpu_core,Texture,Texture scenario 2,DV 0.8,passing,mmu_fault
+TP-018,gpu_core,Texture,Texture scenario 3,DV 0.8,passing,raster_tiles
+TP-019,gpu_core,Texture,Texture scenario 4,DV 1.0,passing,texture_fetch
+TP-020,gpu_core,Texture,Texture scenario 5,DV 1.0,written,texture_fetch
+TP-021,gpu_core,Texture,Texture scenario 6,DV 1.0,written,texture_fetch
+TP-022,gpu_core,Rasterizer,Rasterizer scenario 1,DV 0.8,passing,shader_alu
+TP-023,gpu_core,Rasterizer,Rasterizer scenario 2,DV 0.8,passing,mmu_fault
+TP-024,gpu_core,Rasterizer,Rasterizer scenario 3,DV 0.8,passing,raster_tiles
+TP-025,gpu_core,Rasterizer,Rasterizer scenario 4,DV 1.0,written,raster_tiles
+TP-026,gpu_core,Rasterizer,Rasterizer scenario 5,DV 1.0,written,mmu_fault
+TP-027,gpu_core,Rasterizer,Rasterizer scenario 6,DV 1.0,written,texture_fetch
+TP-028,gpu_core,Memory,Memory scenario 1,DV 0.8,passing,raster_tiles
+TP-029,gpu_core,Memory,Memory scenario 2,DV 0.8,passing,texture_fetch
+TP-030,gpu_core,Memory,Memory scenario 3,DV 0.8,passing,mmu_fault
+TP-031,gpu_core,Memory,Memory scenario 4,DV 1.0,passing,compute_dispatch
+TP-032,isp_pipeline,Front end,Front end scenario 1,DV 0.8,passing,auto_white_balance
+TP-033,isp_pipeline,Front end,Front end scenario 2,DV 0.8,passing,hdr_merge
+TP-034,isp_pipeline,Front end,Front end scenario 3,DV 0.8,passing,scaler_bypass
+TP-035,isp_pipeline,Color,Color scenario 1,DV 0.8,passing,hdr_merge
+TP-036,isp_pipeline,Color,Color scenario 2,DV 0.8,passing,hdr_merge
+TP-037,isp_pipeline,Color,Color scenario 3,DV 0.8,passing,scaler_bypass
+TP-038,isp_pipeline,Color,Color scenario 4,DV 1.0,passing,lens_shading
+TP-039,isp_pipeline,Color,Color scenario 5,DV 1.0,passing,bayer_demosaic
+TP-040,isp_pipeline,Color,Color scenario 6,DV 1.0,passing,auto_white_balance
+TP-041,isp_pipeline,HDR,HDR scenario 1,DV 0.8,passing,lens_shading
+TP-042,isp_pipeline,HDR,HDR scenario 2,DV 0.8,passing,auto_white_balance
+TP-043,isp_pipeline,HDR,HDR scenario 3,DV 0.8,passing,lens_shading
+TP-044,isp_pipeline,HDR,HDR scenario 4,DV 1.0,passing,hdr_merge
+TP-045,isp_pipeline,HDR,HDR scenario 5,DV 1.0,passing,auto_white_balance
+TP-046,isp_pipeline,HDR,HDR scenario 6,DV 1.0,passing,scaler_bypass
+TP-047,isp_pipeline,Output,Output scenario 1,DV 0.8,passing,hdr_merge
+TP-048,isp_pipeline,Output,Output scenario 2,DV 0.8,passing,lens_shading
+TP-049,isp_pipeline,Output,Output scenario 3,DV 0.8,passing,scaler_bypass
+TP-050,isp_pipeline,Output,Output scenario 4,DV 1.0,passing,bayer_demosaic
+TP-051,isp_pipeline,Output,Output scenario 5,DV 1.0,passing,bayer_demosaic
+TP-052,lpddr5_ctrl,Training,Training scenario 1,DV 0.8,passing,wck_sync
+TP-053,lpddr5_ctrl,Training,Training scenario 2,DV 0.8,passing,wck_sync
+TP-054,lpddr5_ctrl,Training,Training scenario 3,DV 0.8,passing,dvfsc_switch
+TP-055,lpddr5_ctrl,Training,Training scenario 4,DV 1.0,passing,refresh_per_bank
+TP-056,lpddr5_ctrl,Refresh,Refresh scenario 1,DV 0.8,passing,init_training
+TP-057,lpddr5_ctrl,Refresh,Refresh scenario 2,DV 0.8,passing,link_ecc
+TP-058,lpddr5_ctrl,Refresh,Refresh scenario 3,DV 0.8,passing,refresh_per_bank
+TP-059,lpddr5_ctrl,Refresh,Refresh scenario 4,DV 1.0,passing,init_training
+TP-060,lpddr5_ctrl,Link ECC,Link ECC scenario 1,DV 0.8,passing,refresh_per_bank
+TP-061,lpddr5_ctrl,Link ECC,Link ECC scenario 2,DV 0.8,passing,refresh_per_bank
+TP-062,lpddr5_ctrl,Link ECC,Link ECC scenario 3,DV 0.8,passing,dvfsc_switch
+TP-063,lpddr5_ctrl,Link ECC,Link ECC scenario 4,DV 1.0,passing,init_training
+TP-064,mipi_csi,PHY,PHY scenario 1,DV 0.8,passing,lane_deskew
+TP-065,mipi_csi,PHY,PHY scenario 2,DV 0.8,passing,lane_deskew
+TP-066,mipi_csi,PHY,PHY scenario 3,DV 0.8,passing,crc_error_inject
+TP-067,mipi_csi,PHY,PHY scenario 4,DV 1.0,passing,crc_error_inject
+TP-068,mipi_csi,Protocol,Protocol scenario 1,DV 0.8,passing,virtual_channels
+TP-069,mipi_csi,Protocol,Protocol scenario 2,DV 0.8,passing,virtual_channels
+TP-070,mipi_csi,Protocol,Protocol scenario 3,DV 0.8,passing,crc_error_inject
+TP-071,mipi_csi,Protocol,Protocol scenario 4,DV 1.0,passing,crc_error_inject
+TP-072,pmu,Sequencing,Sequencing scenario 1,DV 0.8,passing,wakeup_sources
+TP-073,pmu,Sequencing,Sequencing scenario 2,DV 0.8,passing,retention_save_restore
+TP-074,pmu,Sequencing,Sequencing scenario 3,DV 0.8,passing,wakeup_sources
+TP-075,pmu,Sequencing,Sequencing scenario 4,DV 1.0,written,brownout
+TP-076,pmu,Wakeup,Wakeup scenario 1,DV 0.8,passing,wakeup_sources
+TP-077,pmu,Wakeup,Wakeup scenario 2,DV 0.8,passing,retention_save_restore
+TP-078,pmu,Wakeup,Wakeup scenario 3,DV 0.8,passing,brownout
+TP-079,pmu,Wakeup,Wakeup scenario 4,DV 1.0,passing,retention_save_restore
+TP-080,pmu,Wakeup,Wakeup scenario 5,DV 1.0,written,power_domain_seq
+TP-081,pmu,Wakeup,Wakeup scenario 6,DV 1.0,passing,brownout

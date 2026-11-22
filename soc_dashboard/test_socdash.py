@@ -283,8 +283,8 @@ class RegressionTreeTest(unittest.TestCase):
                 run_row("r1", "FAIL", test="bad"), run_row("r2", "FAIL", test="bad"), run_row("r3", "FAIL", test="bad")]
         tree = socdash.regression_tree(tree_data(runs))
         tests = {t["test"]: t for t in tree["tests"]}
-        self.assertEqual((tests["a"]["since"], tests["a"]["h"]), ("r2", "PFF"))
-        self.assertEqual((tests["gone"]["status"], tests["gone"]["h"]), ("NOT RUN", "P--"))
+        self.assertEqual((tests["a"]["since"], tests["a"]["hist"]), ("r2", "PFF"))
+        self.assertEqual((tests["gone"]["status"], tests["gone"]["hist"]), ("NOT RUN", "P--"))
         top = self.nodes(tree)["all"]
         self.assertEqual((top["not_run"], top["always_fail"]), (1, 1))
 
@@ -328,14 +328,15 @@ class OwnerTest(unittest.TestCase):
 
     def test_weekly_progress_per_owner(self):
         data = tree_data(self.week_runs())
-        data["config"]["settings"]["owner_weeks"] = 3
+        data["config"]["settings"]["weeks"] = 3
         data["owners"] = [{"owner": "Asha", "scope": "mem"}, {"owner": "Elif", "scope": "ddr/u1"}]
         data["bugs"] = [{"block": "ddr", "opened": socdash.dt.date(2026, 11, 9), "closed": None, "owner": "Elif"},
                         {"block": "ddr", "opened": socdash.dt.date(2026, 11, 2), "closed": socdash.dt.date(2026, 11, 12),
                          "owner": ""}]
-        owners = socdash.regression_tree(data)["owners"]
-        self.assertEqual([w["end"] for w in owners["weeks"]], ["2026-11-07", "2026-11-14"])  # empty week dropped
-        self.assertEqual([w["start_run"] for w in owners["weeks"]], [None, "r7"])
+        tree = socdash.regression_tree(data)
+        owners = tree["owners"]
+        self.assertEqual([w["end"] for w in tree["weeks"]], ["2026-11-07", "2026-11-14"])  # empty week dropped
+        self.assertEqual([w["s"] for w in tree["weeks"]], [None, 1])  # r7 is the last run before week 2
         by = {o["owner"]: o for o in owners["list"]}
         asha, elif_ = by["Asha"]["weeks"][1], by["Elif"]["weeks"][1]
         self.assertEqual((asha["tp_s"], asha["tp_e"], asha["new_fail"], asha["fixed"]), (1, 0, 1, 0))
@@ -361,6 +362,101 @@ class OwnerTest(unittest.TestCase):
         tree = socdash.regression_tree(socdash.load(HERE / "projects" / "nova_io_hub"))
         self.assertIsNone(tree["owners"])
         self.assertEqual({t["o"] for t in tree["tests"]}, {""})
+
+
+D = socdash.dt.date
+
+
+class ProgressTest(unittest.TestCase):
+    def dates(self, n):
+        return [D(2026, 11, 1) + socdash.dt.timedelta(days=i) for i in range(n)]
+
+    def test_forecast_statuses(self):
+        days = self.dates(10)
+        rising = [0.70 + 0.01 * i for i in range(10)]  # +7 points a week, 0.79 now
+        f = socdash.forecast(days, rising, 0.90, D(2026, 11, 30), 10)
+        self.assertEqual(f["status"], "on_track")
+        self.assertEqual(f["eta"], "2026-11-21")  # 11 more points at 1 point a day
+        self.assertEqual(socdash.forecast(days, rising, 0.90, D(2026, 11, 15), 10)["status"], "at_risk")
+        self.assertEqual(socdash.forecast(days, rising, 0.90, None, 10)["status"], "projected")
+        self.assertEqual(socdash.forecast(days, [0.8] * 10, 0.9, None, 10)["status"], "stalled")
+        self.assertEqual(socdash.forecast(days, [0.5] * 7 + [0.95, 0.96, 0.97], 0.95, None, 10)["status"], "met")
+        # One good run on its own is not "met": the last three must average at the bar.
+        self.assertNotEqual(socdash.forecast(days, [0.8] * 9 + [0.99], 0.95, None, 10)["status"], "met")
+        self.assertEqual(socdash.forecast(days[:2], rising[:2], 0.9, None, 10)["status"], "unknown")
+        self.assertEqual(socdash.forecast(days, [None] * 10, 0.9, None, 10)["status"], "unknown")
+
+    def test_run_weeks_and_fail_age(self):
+        days = [D(2026, 11, d) for d in (2, 6, 9, 13, 14)]
+        weeks = socdash.run_weeks(days, D(2026, 11, 14), 3)
+        self.assertEqual([(w["end"], w["s"], w["e"], w["runs"]) for w in weeks],
+                         [("2026-11-07", None, 1, 2), ("2026-11-14", 1, 4, 3)])  # the empty week is dropped
+        status = {0: "PASS", 1: "FAIL", 3: "FAIL", 4: "TIMEOUT"}  # run 2 skipped
+        self.assertEqual(socdash.fail_age(status, 4, days), 8)  # failing since Nov 6
+        self.assertIsNone(socdash.fail_age(status, 0, days))
+
+    def test_coverage_trend_carries_blocks_forward(self):
+        hist = [{"date": D(2026, 11, 1), "block": "a", "metric": "line", "covered": 50, "total": 100, "target": 90},
+                {"date": D(2026, 11, 1), "block": "b", "metric": "line", "covered": 80, "total": 100, "target": 90},
+                {"date": D(2026, 11, 8), "block": "a", "metric": "line", "covered": 70, "total": 100, "target": 90}]
+        tr = socdash.coverage_trend(hist)
+        self.assertEqual([round(p["metrics"]["line"]["pct"]) for p in tr], [65, 75])  # b's Nov 1 value still counts
+        self.assertIsNone(socdash.coverage_trend(hist[:2]))
+
+    def test_testplan_trend(self):
+        items = [{"id": "t1", "status": "passing"}, {"id": "t2", "status": "written"}, {"id": "t3", "status": "planned"}]
+        hist = [{"date": D(2026, 11, 2), "id": "t1", "status": "written"},
+                {"date": D(2026, 11, 9), "id": "t1", "status": "passing"},
+                {"date": D(2026, 11, 9), "id": "t2", "status": "written"}]
+        tr = socdash.testplan_trend(items, hist, D(2026, 11, 14), 3)
+        self.assertEqual([(p["planned"], p["written"], p["passing"]) for p in tr], [(3, 0, 0), (2, 1, 0), (1, 1, 1)])
+        self.assertIsNone(socdash.testplan_trend(items, [], D(2026, 11, 14), 3))
+
+    def test_fix_speed(self):
+        bugs = [{"severity": "S1", "status": "closed", "opened": D(2026, 11, 1), "closed": D(2026, 11, 5)},
+                {"severity": "S1", "status": "closed", "opened": D(2026, 11, 1), "closed": D(2026, 11, 11)},
+                {"severity": "S1", "status": "open", "opened": D(2026, 11, 2), "closed": None}]
+        s1 = socdash.fix_speed(bugs, D(2026, 11, 14))[0]
+        self.assertEqual((s1["closed"], s1["median"], s1["open"], s1["oldest_open"]), (2, 10, 1, 12))
+
+    def test_owner_targets_and_coverage_reach_owner_weeks(self):
+        tree = socdash.regression_tree(socdash.load(ORION))
+        asha = next(o for o in tree["owners"]["list"] if o["owner"] == "Asha")
+        last = asha["weeks"][-1]
+        self.assertIsNotNone(last["target"])
+        self.assertIsNotNone(last["cov_e"])
+        self.assertIn(asha["forecast"]["status"], ("met", "on_track", "at_risk", "stalled", "projected", "unknown"))
+
+    def test_optional_file_errors(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proj = Path(tmp, "p")
+            shutil.copytree(ORION, proj)
+            (proj / "owner_targets.csv").write_text("owner,week_end,target_passing\nZed,2026-11-21,4\n")
+            with self.assertRaises(socdash.InputError) as ctx:
+                socdash.load(proj)
+            self.assertIn("owner 'Zed' is not in owners.csv", str(ctx.exception))
+            (proj / "owner_targets.csv").unlink()
+            (proj / "testplan_history.csv").write_text("date,id,status\n2026-11-01,TP-999,written\n")
+            with self.assertRaises(socdash.InputError) as ctx:
+                socdash.load(proj)
+            self.assertIn("id 'TP-999' is not in the testplan", str(ctx.exception))
+
+    def test_undated_coverage_still_works(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proj = Path(tmp, "p")
+            shutil.copytree(ORION, proj)
+            (proj / "coverage.csv").write_text("block,metric,covered,total,target_pct\nddr_ctrl,line,90,100,98\n")
+            payload = socdash.build_payload(socdash.load(proj))
+            self.assertIsNone(payload["scopes"]["all"]["coverage_trend"])
+            self.assertEqual(payload["scopes"]["all"]["coverage"]["cells"], 1)
+
+    def test_overview_lists_owners_across_projects(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp, "site")
+            socdash.build_all(HERE / "projects", out, "P")
+            html = (out / "index.html").read_text()
+            self.assertIn('"owners":[{"owner":', html)
+            self.assertIn('"forecast":{"status":', html)
 
 
 class CollectLayoutTest(unittest.TestCase):

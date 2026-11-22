@@ -41,7 +41,7 @@ ORION = {
         "ddr_ctrl": dict(tests=["init_training", "refresh_timing", "bank_interleave", "ecc_single_bit",
                                 "ecc_double_bit", "self_refresh_exit", "rw_turnaround", "power_down",
                                 "phy_calib", "row_hammer_mitigation"],
-                         start=0.45, floor=0.10, timeout_share=0.15, lag=9,
+                         start=0.45, floor=0.17, timeout_share=0.15, lag=9,
                          features=["Initialization and training", "Refresh and power", "ECC", "Performance"],
                          sigs=["[ECC_CHK] double-bit error not flagged addr=<HEX>",
                                "[DFI_TIMING] tRFC violated by <N> cycles on rank <N>",
@@ -130,7 +130,7 @@ ORION = {
              "criteria": {"min_pass_rate": 0.70, "coverage_target_scale": 0.5,
                           "max_unresolved_bugs": {"S1": 3}, "min_testplan_written": 0.8}},
             {"name": "DV 0.8", "date": "2026-12-11",
-             "criteria": {"min_pass_rate": 0.90, "coverage_target_scale": 0.9,
+             "criteria": {"min_pass_rate": 0.95, "coverage_target_scale": 0.9,
                           "max_unresolved_bugs": {"S1": 0, "S2": 5}, "min_testplan_written": 0.95,
                           "min_testplan_passing": 0.8}},
             {"name": "DV 1.0", "date": "2027-02-05",
@@ -277,15 +277,20 @@ def regression_rows(spec, rng):
 
 
 def coverage_rows(spec, rng):
+    """One coverage snapshot per week, closing toward each block's final number."""
+    snapshots = max(2, spec["runs"] // 7 + 1)
     rows = []
     for block, b in spec["blocks"].items():
         scale = 0.2 if b.get("small") else 1.0
         for metric, target in METRIC_TARGETS.items():
             total = max(8, int(METRIC_SIZES[metric] * scale * rng.uniform(0.6, 1.4)))
             extra = 1.6 if metric in ("functional", "toggle") else 1.0
-            pct = 100.0 if b["lag"] == 0 else min(
+            final = 100.0 if b["lag"] == 0 else min(
                 100.0, target - b["lag"] * extra * rng.uniform(0.3, 1.3) + rng.uniform(-0.5, 1.8))
-            rows.append([block, metric, round(total * pct / 100), total, target])
+            weekly_gain = rng.uniform(0.8, 2.2) * (2.2 if metric == "functional" else 1.0) * (0.4 if b["lag"] == 0 else 1)
+            for k in range(snapshots - 1, -1, -1):
+                pct = max(35.0, final - weekly_gain * k)
+                rows.append([AS_OF - dt.timedelta(days=7 * k), block, metric, round(total * pct / 100), total, target])
     return rows
 
 
@@ -320,6 +325,40 @@ def testplan_rows(spec, rng):
     return rows
 
 
+def testplan_history(plan, rng):
+    """Dated status changes that end at each item's current status, over the last 10 weeks."""
+    first = AS_OF - dt.timedelta(days=70)
+    span = (AS_OF - first).days
+    rows = []
+    for item_id, *_, status, _test in plan:
+        if status == "planned":
+            continue
+        # Mature items were written early; later ones crowd toward the present.
+        written = first + dt.timedelta(days=int(span * rng.random() ** 0.7 * 0.85))
+        rows.append([written, item_id, "written"])
+        if status == "passing":
+            left = (AS_OF - written).days
+            rows.append([written + dt.timedelta(days=max(1, int(left * rng.uniform(0.2, 1.0)))), item_id, "passing"])
+    return sorted(rows)
+
+
+def owner_targets(folder):
+    """Weekly plan per owner: share of their tests expected to pass at each week's end."""
+    import socdash  # the sample targets are sized from each owner's test count
+    data = socdash.load(folder)
+    tree = socdash.regression_tree(data)
+    plan = [0.62, 0.72, 0.8, 0.87, 0.93, 0.97]
+    rows = []
+    for o in tree["owners"]["list"]:
+        if o["owner"] == socdash.UNASSIGNED:
+            continue
+        weeks = tree["weeks"]
+        for k, wk in enumerate(weeks):
+            frac = plan[min(len(plan) - 1, len(plan) - len(weeks) + k)]
+            rows.append([o["owner"], wk["end"], round(o["tests"] * frac)])
+    return rows
+
+
 def write_csv(path, header, rows):
     with path.open("w", newline="") as f:
         w = csv.writer(f)
@@ -337,20 +376,23 @@ def write_project(spec):
     if spec.get("hierarchy_in_csv"):
         header += ["subsystem", "instance"]
     write_csv(out / files["regression"], header, regression_rows(spec, rng))
-    write_csv(out / files["coverage"], ["block", "metric", "covered", "total", "target_pct"], coverage_rows(spec, rng))
+    write_csv(out / files["coverage"], ["date", "block", "metric", "covered", "total", "target_pct"],
+              coverage_rows(spec, rng))
     bugs, bug_header = bug_rows(spec, rng), ["id", "title", "block", "severity", "status", "opened", "closed"]
     if spec.get("bug_owner"):
         bug_header.append("owner")
         bugs = [row + [spec["bug_owner"].get(row[0], "")] for row in bugs]
     write_csv(out / files["bugs"], bug_header, bugs)
-    write_csv(out / files["testplan"], ["id", "block", "feature", "item", "milestone", "status", "test"],
-              testplan_rows(spec, rng))
+    plan = testplan_rows(spec, rng)
+    write_csv(out / files["testplan"], ["id", "block", "feature", "item", "milestone", "status", "test"], plan)
+    write_csv(out / "testplan_history.csv", ["date", "id", "status"], testplan_history(plan, rng))
     config = dict(spec["config"])
     if "subsystems" in config:  # projects without hierarchy columns group blocks here instead
         config["subsystems"] = spec["subsystems"]
     (out / "config.json").write_text(json.dumps(config, indent=2) + "\n")
     if spec.get("owners"):
         write_csv(out / "owners.csv", ["owner", "scope"], spec["owners"])
+        write_csv(out / "owner_targets.csv", ["owner", "week_end", "target_passing"], owner_targets(out))
     print(f"Wrote {out}")
 
 
