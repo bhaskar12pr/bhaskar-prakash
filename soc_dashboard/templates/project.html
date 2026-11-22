@@ -10,7 +10,7 @@
 .mini .top b { font: 600 1.05rem var(--font-display); font-variant-numeric: tabular-nums; }
 </style>
 <!--BODY-->
-<div class="wrap">
+<main class="wrap">
   <header class="top">
     <div style="display:grid;gap:6px">
       <span class="label"><a id="home" class="home" href="index.html" hidden>All projects</a><span id="home-sep" hidden> / </span>SoC verification status</span>
@@ -26,7 +26,7 @@
     <div class="band-head"><h2>Regression</h2><p id="reg-note"></p><a id="reg-link" class="go" hidden>Subsystem, module and instance detail</a></div>
     <div class="grid">
       <div class="panel span-7">
-        <div class="panel-head"><h3>Pass rate by nightly run</h3><span class="legend" id="trend-legend"></span></div>
+        <div class="panel-head"><h3>Sim pass rate by nightly run</h3><span class="legend" id="trend-legend"></span></div>
         <div id="trend"></div>
       </div>
       <div class="panel span-5" id="blocks-panel">
@@ -39,7 +39,7 @@
       </div>
       <div class="panel span-5">
         <div class="panel-head"><h3 id="intermittent-title">Intermittent tests</h3>
-          <span class="legend"><span><i style="background:var(--pass)"></i>pass</span><span><i style="background:var(--fail)"></i>fail</span><span><i style="background:var(--warn)"></i>timeout</span><span><i style="background:var(--err)"></i>error</span></span></div>
+          <span class="legend"><span><i style="background:var(--pass)"></i>pass</span><span><i style="background:var(--fail)"></i>fail</span><span><i style="background:var(--err)"></i>error</span><span><i style="background:var(--warn)"></i>timeout</span></span></div>
         <div class="scroll" id="intermittent"></div>
       </div>
     </div>
@@ -58,7 +58,7 @@
         <div class="scroll" id="covmatrix"></div>
       </div>
       <div class="panel span-12" id="covtrend-panel" hidden>
-        <div class="panel-head"><h3>Coverage over time</h3><span class="legend"><span><i style="background:var(--accent)"></i>percent covered</span><span><i style="background:var(--ink);height:2px"></i>target</span></span></div>
+        <div class="panel-head"><h3>Coverage over time</h3><span class="legend"><span><i style="background:var(--accent);height:2px"></i>percent covered</span><span><i style="background:var(--ink);height:2px"></i>target</span></span></div>
         <div class="minis" id="covtrend"></div>
       </div>
     </div>
@@ -104,12 +104,13 @@
   </section>
 
   <footer id="footer"></footer>
-</div>
+</main>
 
 <script type="application/json" id="socdash-data">__SOCDASH_DATA__</script>
 <script>
 (function () {
   "use strict";
+/*__VIZ__*/
   var D = JSON.parse(document.getElementById("socdash-data").textContent);
   var SVGNS = "http://www.w3.org/2000/svg";
   var scope = "all";
@@ -146,7 +147,10 @@
       el(s, "line", { x1: l, x2: w - r, y1: y(tgt), y2: y(tgt), stroke: "var(--ink)", "stroke-width": 1.5 });
       el(s, "path", { d: "M" + pts.map(function (p, i) { return x(i) + "," + y(p.v); }).join("L") + "L" + x(pts.length - 1) + "," + (h - bt) + "L" + x(0) + "," + (h - bt) + "Z", fill: "var(--accent)", "fill-opacity": 0.12 });
       el(s, "path", { d: "M" + pts.map(function (p, i) { return x(i) + "," + y(p.v); }).join("L"), fill: "none", stroke: "var(--accent)", "stroke-width": 2 });
-      pts.forEach(function (p, i) { var c = el(s, "circle", { cx: x(i), cy: y(p.v), r: i === pts.length - 1 ? 3.5 : 2, fill: "var(--accent)" }); el(c, "title", {}, p.d + ": " + p.v.toFixed(1) + "% (target " + p.t.toFixed(0) + "%)"); });
+      Viz.dot(s, x(pts.length - 1), y(pts[pts.length - 1].v), "var(--accent)", 4);
+      Viz.crosshair(s, pts.map(function (_, i) { return x(i); }), tp, h - bt, l, w - r, function (i) {
+        return { title: m + " · " + pts[i].d, rows: [{ value: pts[i].v.toFixed(1) + "%", label: "covered", color: "var(--accent)" }, { value: pts[i].t.toFixed(0) + "%", label: "target" }] };
+      });
       el(s, "text", { x: l, y: h - 3 }, shortDate(pts[0].d));
       el(s, "text", { x: w - r, y: h - 3, "text-anchor": "end" }, shortDate(pts[pts.length - 1].d));
       var first = pts[0].v, last = pts[pts.length - 1].v, d = last - first;
@@ -160,6 +164,10 @@
       div.appendChild(note);
       $("covtrend").appendChild(div);
     });
+    var head = ["Date"].concat(D.metrics);
+    Viz.table($("covtrend-panel"), "Show coverage history as a table", head, tr.slice().reverse().map(function (p) {
+      return [p.date].concat(D.metrics.map(function (m) { return p.metrics[m] ? p.metrics[m].pct.toFixed(1) + "%" : "–"; }));
+    }));
   }
 
   function renderFixSpeed() {
@@ -182,18 +190,22 @@
     var step = max <= 20 ? 5 : max <= 60 ? 10 : max <= 150 ? 25 : 50, top = Math.ceil(max / step) * step;
     function y(v) { return T + (1 - v / top) * (H - T - B); }
     for (var g = 0; g <= top; g += step) { el(s, "line", { x1: Lm, x2: W - R, y1: y(g), y2: y(g), "class": "grid-line" }); el(s, "text", { x: Lm - 6, y: y(g) + 4, "text-anchor": "end" }, g); }
-    var cw = (W - Lm - R) / tr.length, bw = Math.min(44, cw * 0.55);
+    var cw = (W - Lm - R) / tr.length, bw = Math.min(24, cw * 0.55);
     tr.forEach(function (p, i) {
-      var x0 = Lm + cw * i + (cw - bw) / 2, base = 0;
-      [["passing", "var(--pass)"], ["written", "var(--accent)"], ["planned", "var(--planned)"]].forEach(function (k) {
-        var v = p[k[0]]; if (!v) return;
-        var r = el(s, "rect", { x: x0, y: y(base + v), width: bw, height: y(base) - y(base + v), fill: k[1] }); el(r, "title", {}, "Week ending " + p.date + ": " + v + " " + k[0]);
-        base += v;
-      });
-      if (p.passing) el(s, "text", { x: x0 + bw / 2, y: y(p.passing) - 4, "text-anchor": "middle", style: "fill:var(--ink);font-weight:600;paint-order:stroke;stroke:var(--surface);stroke-width:3px" }, p.passing);
+      var x0 = Lm + cw * i + (cw - bw) / 2;
+      Viz.stack(s, x0, y(0), bw, (y(0) - y(top)) / top, [
+        { value: p.passing, color: "var(--pass)" }, { value: p.written, color: "var(--accent)" }, { value: p.planned, color: "var(--planned)" }
+      ], function () { return { title: "Week ending " + p.date, rows: [
+        { value: String(p.passing), label: "passing", color: "var(--pass)", key: "box" },
+        { value: String(p.written), label: "written, not passing", color: "var(--accent)", key: "box" },
+        { value: String(p.planned), label: "planned", color: "var(--planned)", key: "box" }] }; });
       el(s, "text", { x: x0 + bw / 2, y: H - 8, "text-anchor": "middle" }, shortDate(p.date));
     });
-    $("tptrend").innerHTML = ""; $("tptrend").appendChild(s);
+    var lastP = tr[tr.length - 1], lx = Lm + cw * (tr.length - 1) + (cw + bw) / 2 + 6;
+    el(s, "text", { x: lx, y: y(lastP.passing) + 4, "class": "end-label" }, lastP.passing + " passing");
+    var tpb = $("tptrend"); tpb.innerHTML = ""; tpb.appendChild(s);
+    Viz.table(tpb, "Show weeks as a table", ["Week ending", "Passing", "Written", "Planned"],
+      tr.slice().reverse().map(function (p) { return [p.date, String(p.passing), String(p.written), String(p.planned)]; }));
     if (tr.length > 1) {
       var last = tr[tr.length - 1], prev = tr[tr.length - 2], first = tr[0], dp = last.passing - prev.passing;
       var note = document.createElement("p"); note.className = "muted"; note.style.cssText = "margin:0;font-size:.82rem";
@@ -238,7 +250,7 @@
   }
 
   function sparkline(values, color) {
-    var w = 160, h = 28, s = svg(w, h, "");
+    var w = 160, h = 28, s = svg(w, h, ""); s.removeAttribute("role");  // decorative: the KPI text carries the value
     s.setAttribute("preserveAspectRatio", "none"); s.setAttribute("aria-hidden", "true");
     var v = values.filter(function (x) { return x != null; }); if (v.length < 2) return s;
     var lo = Math.min.apply(null, v), hi = Math.max.apply(null, v); if (hi - lo < 1e-9) { hi = lo + 1; }
@@ -256,7 +268,7 @@
     var ms = currentMilestone(), okN = ms ? ms.checks.filter(function (c) { return c.ok; }).length : 0;
     var css = getComputedStyle(document.documentElement);
     var items = [
-      { label: "Pass rate, latest run", value: pct(last && last.rate),
+      { label: "Sim pass rate, latest run", value: pct(last && last.rate),
         sub: (last ? last.pass + " of " + last.total + " sims" : "") + (delta != null ? " · <span class=\"" + (delta >= 0 ? "up" : "down") + "\">" + (delta >= 0 ? "▲ " : "▼ ") + Math.abs(100 * delta).toFixed(1) + " pts</span>" : "") + "<br>" + fcPill(s.forecast),
         spark: sparkline(t.map(function (x) { return x.rate; }), css.getPropertyValue("--accent").trim() || "#1f5fbf"),
         pill: last && last.rate != null ? "<span class=\"pill " + rateClass(last.rate, need) + "\">need " + pct(need, 0) + "</span>" : "" },
@@ -282,11 +294,12 @@
   /* ---------- regression ---------- */
   function renderTrend() {
     var t = S().trend, need = needRate();
-    var W = 640, H = 250, L = 40, R = 52, T = 12, B = 72, failH = 46;
+    var W = 640, H = 262, L = 40, R = 56, T = 12, B = 46, failH = 52, gapH = 22;
     var s = svg(W, H), n = t.length, cw = (W - L - R) / Math.max(1, n);
+    s.setAttribute("aria-label", "Pass rate per nightly run, with failing simulations per run below");
     var rates = t.map(function (x) { return x.rate; }).filter(function (x) { return x != null; });
     var lo = Math.max(0, Math.floor((Math.min.apply(null, rates.concat([need])) - 0.05) * 10) / 10), hi = 1;
-    var plotB = H - B - failH - 10;
+    var plotB = H - B - failH - gapH;
     function y(v) { return T + (hi - v) / (hi - lo) * (plotB - T); }
     function x(i) { return L + cw * (i + 0.5); }
     for (var g = lo; g <= hi + 1e-9; g += 0.1) {
@@ -297,41 +310,45 @@
     el(s, "text", { x: W - R + 4, y: y(need) + 4, style: "fill:var(--ink)" }, "need " + Math.round(need * 100) + "%");
     var pts = t.map(function (d, i) { return d.rate == null ? null : [x(i), y(d.rate)]; }).filter(Boolean);
     if (pts.length) {
-      el(s, "path", { d: "M" + pts[0][0] + "," + plotB + "L" + pts.map(function (p) { return p.join(","); }).join("L") + "L" + pts[pts.length - 1][0] + "," + plotB + "Z", fill: "var(--accent)", "fill-opacity": "0.12" });
-      el(s, "path", { d: "M" + pts.map(function (p) { return p.join(","); }).join("L"), fill: "none", stroke: "var(--accent)", "stroke-width": 2, "stroke-linejoin": "round" });
-      t.forEach(function (d, i) {
-        if (d.rate == null) return;
-        var c = el(s, "circle", { cx: x(i), cy: y(d.rate), r: i === n - 1 ? 4.5 : 2.5, fill: i === n - 1 ? "var(--accent)" : "var(--surface)", stroke: "var(--accent)", "stroke-width": 1.5 });
-        el(c, "title", {}, d.run + " · " + pct(d.rate) + " (" + d.pass + "/" + d.total + ")");
-      });
+      el(s, "path", { d: "M" + pts[0][0] + "," + plotB + "L" + pts.map(function (p) { return p.join(","); }).join("L") + "L" + pts[pts.length - 1][0] + "," + plotB + "Z", fill: "var(--accent)", "fill-opacity": "0.1" });
+      el(s, "path", { d: "M" + pts.map(function (p) { return p.join(","); }).join("L"), fill: "none", stroke: "var(--accent)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" });
       var lp = pts[pts.length - 1];
-      // Keep the end label clear of the "need" label on the same right edge.
-      var ly = lp[1] - 6;
+      Viz.dot(s, lp[0], lp[1], "var(--accent)", 4.5);
+      var ly = lp[1] - 8;
       if (Math.abs(ly - (y(need) + 4)) < 13) ly = lp[1] <= y(need) ? y(need) - 10 : y(need) + 17;
       el(s, "text", { x: lp[0] + 8, y: ly, "class": "end-label" }, pct(t[n - 1].rate));
     }
-    // failures per run, stacked
-    var fb = plotB + 14, maxF = Math.max.apply(null, t.map(function (d) { return d.fail + d.timeout + d.error; }).concat([1]));
-    el(s, "text", { x: L - 6, y: fb + 10, "text-anchor": "end" }, maxF);
-    el(s, "text", { x: L - 6, y: fb + failH, "text-anchor": "end" }, "0");
-    el(s, "line", { x1: L, x2: W - R, y1: fb + failH, y2: fb + failH, "class": "axis-strong" });
-    t.forEach(function (d, i) {
-      var yy = fb + failH, bw = Math.min(18, cw * 0.6);
-      [["fail", "var(--fail)"], ["timeout", "var(--warn)"], ["error", "var(--err)"]].forEach(function (k) {
-        var h = d[k[0]] / maxF * failH; if (!h) return;
-        yy -= h; var r = el(s, "rect", { x: x(i) - bw / 2, y: yy, width: bw, height: h, fill: k[1] });
-        el(r, "title", {}, d.run + " · " + d[k[0]] + " " + k[0]);
-      });
-      if (n <= 16 || (n - 1 - i) % 2 === 0) {
-        el(s, "text", { x: x(i), y: H - B + 18, "text-anchor": "end", transform: "rotate(-40 " + x(i) + " " + (H - B + 18) + ")" }, shortDate(d.date));
-      }
-    });
+    // Failing sims per run: a separate panel with its own axis, never a second scale on the line chart.
+    var fb = plotB + gapH, base = fb + failH, maxF = Math.max.apply(null, t.map(function (d) { return d.fail + d.timeout + d.error; }).concat([1]));
+    var stepF = maxF <= 4 ? 1 : maxF <= 10 ? 2 : maxF <= 25 ? 5 : 10, topF = Math.ceil(maxF / stepF) * stepF;
+    [0, topF].forEach(function (v) { el(s, "text", { x: L - 6, y: base - v / topF * failH + 4, "text-anchor": "end" }, v); });
+    el(s, "line", { x1: L, x2: W - R, y1: base - failH, y2: base - failH, "class": "grid-line" });
+    el(s, "line", { x1: L, x2: W - R, y1: base, y2: base, "class": "axis-strong" });
     el(s, "text", { x: W - R + 4, y: fb + 10 }, "failing");
-    el(s, "text", { x: W - R + 4, y: fb + 24 }, "sims");
-    $("trend").innerHTML = ""; $("trend").appendChild(s);
-    $("trend-legend").innerHTML = "<span><i style=\"background:var(--accent)\"></i>pass rate</span><span><i style=\"background:var(--fail)\"></i>fail</span><span><i style=\"background:var(--warn)\"></i>timeout</span><span><i style=\"background:var(--err)\"></i>error</span>";
+    el(s, "text", { x: W - R + 4, y: fb + 23 }, "sims");
+    var bw = Math.min(24, cw * 0.62);
+    t.forEach(function (d, i) {
+      Viz.stack(s, x(i) - bw / 2, base, bw, failH / topF, [
+        { value: d.fail, color: "var(--fail)" }, { value: d.error, color: "var(--err)" }, { value: d.timeout, color: "var(--warn)" }
+      ], function () { return { title: d.run + " · " + d.date, rows: [
+        { value: String(d.fail), label: "failed", color: "var(--fail)", key: "box" },
+        { value: String(d.error), label: "errored", color: "var(--err)", key: "box" },
+        { value: String(d.timeout), label: "timed out", color: "var(--warn)", key: "box" }] }; });
+      if (n <= 16 || (n - 1 - i) % 2 === 0) el(s, "text", { x: x(i), y: base + 14, "text-anchor": "end", transform: "rotate(-40 " + x(i) + " " + (base + 14) + ")" }, shortDate(d.date));
+    });
+    Viz.crosshair(s, t.map(function (d, i) { return d.rate == null ? null : x(i); }), T, plotB, L, W - R, function (i) {
+      var d = t[i];
+      return { title: d.run + " · " + d.date, rows: [
+        { value: pct(d.rate), label: "pass rate", color: "var(--accent)" },
+        { value: d.pass + " / " + d.total, label: "sims passed" },
+        { value: String(d.fail + d.error + d.timeout), label: "failing sims" }] };
+    });
+    var box = $("trend"); box.innerHTML = ""; box.appendChild(s);
+    Viz.table(box, "Show runs as a table", ["Run", "Date", "Sims", "Pass rate", "Failed", "Errored", "Timed out"],
+      t.slice().reverse().map(function (d) { return [d.run, d.date, String(d.total), pct(d.rate), String(d.fail), String(d.error), String(d.timeout)]; }));
+    $("trend-legend").innerHTML = "<span><i style=\"background:var(--accent);height:2px\"></i>pass rate</span><span><i style=\"background:var(--fail)\"></i>fail</span><span><i style=\"background:var(--err)\"></i>error</span><span><i style=\"background:var(--warn)\"></i>timeout</span>";
     var last = t[n - 1];
-    $("reg-note").textContent = last ? last.total + " simulations in " + D.latest_run + ": " + last.pass + " passed, " + last.fail + " failed, " + last.timeout + " timed out, " + last.error + " errored." : "";
+    $("reg-note").textContent = last ? last.total + " simulations in " + D.latest_run + ": " + last.pass + " passed, " + last.fail + " failed, " + last.error + " errored, " + last.timeout + " timed out." : "";
   }
 
   function renderBlocks() {
@@ -369,7 +386,7 @@
     if (!it.length) { $("intermittent").innerHTML = "<p class=\"empty\">No test both passed and failed in the last " + D.window + " runs.</p>"; return; }
     var h = "<table><thead><tr><th>Test</th><th>Oldest → latest</th><th class=\"r\">Failed</th></tr></thead><tbody>";
     it.forEach(function (x) {
-      h += "<tr><td><span class=\"mono\">" + esc(x.test) + "</span>" + (scope === "all" ? "<br><span class=\"muted\" style=\"font-size:.76rem\">" + esc(x.block) + "</span>" : "") + "</td><td><span class=\"strip\">" +
+      h += "<tr><td><span class=\"mono\">" + esc(x.test) + "</span>" + (scope === "all" ? "<br><span class=\"muted\" style=\"font-size:.76rem\">" + esc(x.block) + "</span>" : "") + "</td><td><span class=\"strip\" role=\"img\" aria-label=\"Last " + x.history.length + " runs, oldest first: " + x.history.map(function (s) { return s ? s.toLowerCase() : "not run"; }).join(", ") + "\">" +
         x.history.map(function (s) { return "<span class=\"" + (s || "none") + "\" title=\"" + (s || "not run") + "\"></span>"; }).join("") +
         "</span></td><td class=\"r\">" + x.fails + "/" + x.ran + "</td></tr>";
     });
@@ -420,7 +437,8 @@
     $("sevcounts").innerHTML = ["S1", "S2", "S3", "S4"].map(function (s) {
       return "<div><span><span class=\"sev " + s + "\">" + s + "</span></span><b>" + u[s] + "</b></div>";
     }).join("");
-    var tr = b.trend, W = 420, H = 150, L = 30, R = 30, T = 14, B = 26, s = svg(W, H);
+    var tr = b.trend, W = 420, H = 160, L = 30, R = 30, T = 14, B = 26, s = svg(W, H);
+    s.setAttribute("aria-label", "Unresolved bugs at the end of each week");
     var max = Math.max.apply(null, tr.map(function (p) { return p.unresolved; }).concat([1]));
     var step = max <= 5 ? 1 : max <= 12 ? 2 : max <= 30 ? 5 : 10, top = Math.ceil(max / step) * step;
     function y(v) { return T + (1 - v / top) * (H - T - B); }
@@ -430,15 +448,21 @@
       el(s, "text", { x: L - 6, y: y(g) + 4, "text-anchor": "end" }, g);
     }
     var pts = tr.map(function (p, i) { return [x(i), y(p.unresolved)]; });
-    el(s, "path", { d: "M" + pts[0][0] + "," + y(0) + "L" + pts.map(function (p) { return p.join(","); }).join("L") + "L" + pts[pts.length - 1][0] + "," + y(0) + "Z", fill: "var(--fail)", "fill-opacity": "0.1" });
-    el(s, "path", { d: "M" + pts.map(function (p) { return p.join(","); }).join("L"), fill: "none", stroke: "var(--fail)", "stroke-width": 2, "stroke-linejoin": "round" });
-    tr.forEach(function (p, i) {
-      var c = el(s, "circle", { cx: x(i), cy: y(p.unresolved), r: i === tr.length - 1 ? 4 : 2.2, fill: i === tr.length - 1 ? "var(--fail)" : "var(--surface)", stroke: "var(--fail)", "stroke-width": 1.4 });
-      el(c, "title", {}, "Week ending " + p.date + ": " + p.unresolved + " unresolved, " + p.found + " found, " + p.closed + " closed");
-      if (i % 3 === (tr.length - 1) % 3) el(s, "text", { x: x(i), y: H - 8, "text-anchor": "middle" }, shortDate(p.date));
+    el(s, "path", { d: "M" + pts[0][0] + "," + y(0) + "L" + pts.map(function (p) { return p.join(","); }).join("L") + "L" + pts[pts.length - 1][0] + "," + y(0) + "Z", fill: "var(--accent)", "fill-opacity": "0.1" });
+    el(s, "path", { d: "M" + pts.map(function (p) { return p.join(","); }).join("L"), fill: "none", stroke: "var(--accent)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" });
+    tr.forEach(function (p, i) { if (i % 3 === (tr.length - 1) % 3) el(s, "text", { x: x(i), y: H - 8, "text-anchor": "middle" }, shortDate(p.date)); });
+    var lp = pts[pts.length - 1];
+    Viz.dot(s, lp[0], lp[1], "var(--accent)", 4.5);
+    el(s, "text", { x: lp[0] + 8, y: lp[1] + 4, "class": "end-label" }, tr[tr.length - 1].unresolved);
+    Viz.crosshair(s, pts.map(function (p) { return p[0]; }), T, H - B, L, W - R, function (i) {
+      var p = tr[i];
+      return { title: "Week ending " + p.date, rows: [
+        { value: String(p.unresolved), label: "unresolved", color: "var(--accent)" },
+        { value: String(p.found), label: "found that week" }, { value: String(p.closed), label: "closed that week" }] };
     });
-    el(s, "text", { x: pts[pts.length - 1][0] + 7, y: pts[pts.length - 1][1] + 4, "class": "end-label" }, tr[tr.length - 1].unresolved);
-    $("bugtrend").innerHTML = ""; $("bugtrend").appendChild(s);
+    var bt = $("bugtrend"); bt.innerHTML = ""; bt.appendChild(s);
+    Viz.table(bt, "Show weeks as a table", ["Week ending", "Unresolved", "Found", "Closed"],
+      tr.slice().reverse().map(function (p) { return [p.date, String(p.unresolved), String(p.found), String(p.closed)]; }));
 
     var list = D.bugList.filter(function (x) { return x.status !== "closed" && (scope === "all" || x.block === scope); })
       .sort(function (a, c) { return a.severity < c.severity ? -1 : a.severity > c.severity ? 1 : a.opened < c.opened ? -1 : 1; });

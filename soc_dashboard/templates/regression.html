@@ -10,6 +10,13 @@
 .controls label { display: flex; align-items: center; gap: 8px; font-size: .85rem; color: var(--muted); flex-wrap: wrap; }
 .controls select { font: 500 .85rem var(--font-mono); padding: 5px 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--ink); max-width: 100%; }
 .controls .viewing { font-size: .82rem; }
+/* Sticky bar: where you are (breadcrumb) and where you can jump. */
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+.jump { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px 16px; padding-block: 8px; border-bottom: 1px solid var(--line); margin-block: -8px; }
+.jump-links { display: flex; flex-wrap: wrap; gap: 2px 4px; }
+.jump-links a { font-size: .82rem; color: var(--muted); text-decoration: none; padding: 4px 8px; border-radius: 4px; min-height: 24px; }
+.jump-links a:hover { color: var(--accent); background: var(--accent-soft); }
+section.band { scroll-margin-top: 64px; }
 .crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; font-size: .9rem; }
 .crumbs button { font: 500 .88rem var(--font-mono); background: none; border: 0; padding: 2px 4px; color: var(--accent); cursor: pointer; border-radius: 3px; }
 .crumbs button:hover { background: var(--accent-soft); }
@@ -26,7 +33,7 @@
 .dnums small { font-size: .76rem; color: var(--muted); }
 .mover { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; font-size: .84rem; }
 .mover .nm { font-family: var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mover button { font: inherit; background: none; border: 0; padding: 0; color: var(--ink); cursor: pointer; text-align: left; }
+.mover button { font: inherit; background: none; border: 0; padding: 4px 0; min-height: 24px; color: var(--ink); cursor: pointer; text-align: left; }
 .mover button:hover { color: var(--accent); text-decoration: underline; }
 .listhead { font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 500; margin-top: 4px; }
 @media (max-width: 900px) { .digest > * { grid-column: 1 / -1; } }
@@ -37,10 +44,10 @@
 .tree tr:hover td { background: var(--sunken); }
 .tree tr.sel:hover td { background: var(--accent-soft); }
 .tree .name { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
-.tree .tog { width: 20px; height: 20px; flex: none; border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 3px; cursor: pointer; font: 600 .8rem/1 var(--font-mono); padding: 0; }
+.tree .tog { width: 24px; height: 24px; flex: none; border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 3px; cursor: pointer; font: 600 .8rem/1 var(--font-mono); padding: 0; }
 .tree .tog:hover { border-color: var(--accent); color: var(--accent); }
-.tree .tog-space { width: 20px; flex: none; }
-.tree .pick, .linkish { font: 500 .86rem var(--font-mono); background: none; border: 0; padding: 2px 4px; color: var(--ink); cursor: pointer; border-radius: 3px; text-align: left; }
+.tree .tog-space { width: 24px; flex: none; }
+.tree .pick, .linkish { font: 500 .86rem var(--font-mono); background: none; border: 0; padding: 4px 4px; min-height: 24px; color: var(--ink); cursor: pointer; border-radius: 3px; text-align: left; }
 .linkish { color: var(--accent); font-family: var(--font-body); }
 .tree .pick:hover, .linkish:hover { color: var(--accent); text-decoration: underline; }
 .tree tr[data-level="subsystem"] .pick { font-weight: 600; }
@@ -58,12 +65,13 @@
 .tests td { vertical-align: middle; }
 .where { font: .76rem var(--font-mono); color: var(--muted); white-space: nowrap; }
 .strip span.none { background: transparent; border: 1px dashed var(--line); }
-.tag-new { font: 600 .66rem var(--font-body); text-transform: uppercase; letter-spacing: .06em; color: var(--fail); margin-left: 6px; }
-.tag-fixed { font: 600 .66rem var(--font-body); text-transform: uppercase; letter-spacing: .06em; color: var(--pass); margin-left: 6px; }
+.tag-new { font: 600 .66rem var(--font-body); text-transform: uppercase; letter-spacing: .06em; color: var(--fail-ink); margin-left: 6px; }
+.tag-fixed { font: 600 .66rem var(--font-body); text-transform: uppercase; letter-spacing: .06em; color: var(--pass-ink); margin-left: 6px; }
 .more { font: 500 .84rem var(--font-body); color: var(--accent); background: none; border: 1px solid var(--line); border-radius: 4px; padding: 6px 12px; cursor: pointer; justify-self: start; }
 .kpi .bar { display: flex; height: 8px; border-radius: 2px; overflow: hidden; background: var(--sunken); margin-top: 4px; }
 .kpi .bar span { display: block; height: 100%; }
-.age-hot { color: var(--fail); font-weight: 600; }
+.legend i.dash { width: 14px; height: 0; border-top: 2px dashed currentColor; border-radius: 0; }
+.age-hot { color: var(--fail-ink); font-weight: 600; }
 
 .heat { display: grid; font-size: .74rem; min-width: max-content; }
 .heat .hrow { display: grid; grid-template-columns: 240px auto; align-items: center; }
@@ -77,7 +85,7 @@
 .heat .cells span.c { box-shadow: 0 0 0 1px var(--muted); }
 .heat .dates span { outline: 0; height: 46px; font-size: .62rem; color: var(--muted); writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; }
 
-.owners { min-width: 1240px; }
+.owners { min-width: 1120px; }
 .owners th { white-space: normal; }
 .owners td { vertical-align: middle; padding-block: 10px; }
 .owners .who { font: 600 1rem var(--font-display); }
@@ -96,7 +104,7 @@
 .who-btn:hover { border-color: var(--accent); }
 </style>
 <!--BODY-->
-<div class="wrap">
+<main class="wrap">
   <header class="top">
     <div style="display:grid;gap:6px;min-width:0">
       <span class="label" id="links"></span>
@@ -108,14 +116,28 @@
   <div class="controls">
     <label for="run-view">Viewing run <select id="run-view"></select></label>
     <label for="run-cmp">compared with <select id="run-cmp"></select></label>
-    <span class="viewing muted" id="viewing"></span>
+    <span class="viewing muted" id="viewing" aria-live="polite"></span>
   </div>
 
-  <nav class="crumbs" id="crumbs" aria-label="Selected part of the design"></nav>
+  <nav class="jump" aria-label="Sections on this page">
+    <div class="crumbs" id="crumbs"></div>
+    <div class="jump-links"><a href="#sec-tree">Hierarchy</a><a href="#sec-week">This week</a><a href="#sec-progress">Progress</a><a href="#sec-failures">Failures</a><a href="#owners-band" id="jump-owners">Owners</a><a href="#tests-band">Tests</a></div>
+  </nav>
 
   <div class="kpis" id="kpis"></div>
 
-  <section class="band">
+  <section class="band" id="sec-tree">
+    <div class="band-head"><h2>Subsystems, modules and instances</h2><p>Select a name to focus every panel on it. Counts are for the run you are viewing.</p></div>
+    <div class="panel">
+      <div class="panel-head">
+        <span class="legend"><span><i class="s-passing"></i>passing</span><span><i class="s-failing"></i>failing</span><span><i class="s-notrun"></i>not run</span></span>
+        <span class="filters"><button type="button" class="chip" id="expand-all">Expand all</button><button type="button" class="chip" id="collapse-all">Collapse to subsystems</button></span>
+      </div>
+      <div class="scroll"><table class="tree" id="tree"></table></div>
+    </div>
+  </section>
+
+  <section class="band" id="sec-week">
     <div class="band-head"><h2>This week</h2><p id="dg-note"></p></div>
     <div class="panel">
       <div class="filters weeks" role="group" aria-label="Week"></div>
@@ -127,23 +149,23 @@
     </div>
   </section>
 
-  <section class="band">
+  <section class="band" id="sec-progress">
     <div class="band-head"><h2>Progress and forecast</h2><p id="prog-note"></p></div>
     <div class="grid">
       <div class="panel span-6">
         <div class="panel-head"><h3>Burn-up: tests passing against tests run</h3>
-          <span class="legend"><span><i style="background:var(--muted)"></i>tests run</span><span><i class="s-passing"></i>passing</span><span><i style="background:var(--pass);opacity:.5"></i>projected</span></span></div>
+          <span class="legend"><span><i style="background:var(--muted);height:2px"></i>tests run</span><span><i style="background:var(--pass);height:2px"></i>passing</span><span><i class="dash" style="color:var(--pass)"></i>projected</span></span></div>
         <div id="burnup"></div>
       </div>
       <div class="panel span-6">
         <div class="panel-head"><h3>Sim pass rate and forecast</h3>
-          <span class="legend"><span><i style="background:var(--accent)"></i>pass rate</span><span><i style="background:var(--accent);opacity:.5"></i>trend to target</span></span></div>
+          <span class="legend"><span><i style="background:var(--accent);height:2px"></i>pass rate</span><span><i class="dash" style="color:var(--accent)"></i>trend to target</span></span></div>
         <div id="ratechart"></div>
       </div>
     </div>
   </section>
 
-  <section class="band">
+  <section class="band" id="sec-failures">
     <div class="band-head"><h2>Failures</h2><p id="fail-note"></p></div>
     <div class="grid">
       <div class="panel span-7">
@@ -168,22 +190,13 @@
     </div>
   </section>
 
-  <section class="band">
-    <div class="band-head"><h2>Subsystems, modules and instances</h2><p>Select a name to focus every panel on it. Counts are for the run you are viewing.</p></div>
-    <div class="panel">
-      <div class="panel-head">
-        <span class="legend"><span><i class="s-passing"></i>passing</span><span><i class="s-failing"></i>failing</span><span><i class="s-notrun"></i>not run</span></span>
-        <span class="filters"><button type="button" class="chip" id="expand-all">Expand all</button><button type="button" class="chip" id="collapse-all">Collapse to subsystems</button></span>
-      </div>
-      <div class="scroll"><table class="tree" id="tree"></table></div>
-    </div>
-  </section>
 
   <section class="band" id="tests-band">
-    <div class="band-head"><h2>Tests</h2><p id="tests-note"></p></div>
+    <div class="band-head"><h2>Tests</h2><p id="tests-note" aria-live="polite"></p></div>
     <div class="panel">
       <div class="panel-head">
         <div class="filters" id="filters" role="group" aria-label="Filter tests"></div>
+        <span class="legend" style="flex-basis:100%"><span><i style="background:var(--pass)"></i>pass</span><span><i style="background:var(--fail)"></i>fail</span><span><i style="background:var(--err)"></i>error</span><span><i style="background:var(--warn)"></i>timeout</span><span><i style="outline:1px dashed var(--muted);outline-offset:-1px"></i>not run</span></span>
         <div class="filters">
           <span class="filters" role="group" aria-label="Show tests as"><button type="button" class="chip" data-view="table">Table</button><button type="button" class="chip" data-view="heat">Heatmap</button></span>
           <input type="search" id="search" placeholder="Filter by test, instance or error" aria-label="Filter by test, instance or error">
@@ -195,12 +208,13 @@
   </section>
 
   <footer id="footer"></footer>
-</div>
+</main>
 
 <script type="application/json" id="socdash-data">__SOCDASH_DATA__</script>
 <script>
 (function () {
   "use strict";
+/*__VIZ__*/
   var D = JSON.parse(document.getElementById("socdash-data").textContent);
   var SVGNS = "http://www.w3.org/2000/svg";
   var byId = {}; D.nodes.forEach(function (n) { byId[n.id] = n; });
@@ -210,7 +224,7 @@
   var STATUS = { P: "PASS", F: "FAIL", T: "TIMEOUT", E: "ERROR" };
   var MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
-  var sel = "all", filter = "all", query = "", limit = 150, view = "table";
+  var sel = "all", filter = "all", query = "", limit = 40, view = "table";
   var V = L, C = L - 1, cmpChoice = "prev";
   var week = W.length - 1, ownerFilter = null;
   var expanded = { all: true }; byId.all.children.forEach(function (c) { expanded[c] = true; });
@@ -435,20 +449,28 @@
     var ran = []; n.total.forEach(function (t, i) { if (t) ran.push(i); });
     function path(arr) { return ran.map(function (i, k) { return (k ? "L" : "M") + x(DATES[i]).toFixed(1) + "," + y(arr[i]).toFixed(1); }).join(""); }
     if (ran.length) {
-      el(s, "path", { d: path(n.tp) + "L" + x(DATES[ran[ran.length - 1]]).toFixed(1) + "," + y(0) + "L" + x(DATES[ran[0]]).toFixed(1) + "," + y(0) + "Z", fill: "var(--pass)", "fill-opacity": "0.12" });
-      el(s, "path", { d: path(runTot), fill: "none", stroke: "var(--muted)", "stroke-width": 2 });
-      el(s, "path", { d: path(n.tp), fill: "none", stroke: "var(--pass)", "stroke-width": 2.2 });
+      el(s, "path", { d: path(n.tp) + "L" + x(DATES[ran[ran.length - 1]]).toFixed(1) + "," + y(0) + "L" + x(DATES[ran[0]]).toFixed(1) + "," + y(0) + "Z", fill: "var(--pass)", "fill-opacity": "0.1" });
+      el(s, "path", { d: path(runTot), fill: "none", stroke: "var(--muted)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" });
+      el(s, "path", { d: path(n.tp), fill: "none", stroke: "var(--pass)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" });
     }
     if (proj != null) {
       el(s, "path", { d: "M" + x(DATES[L]) + "," + y(n.tp[L]) + "L" + x(due) + "," + y(proj), fill: "none", stroke: "var(--pass)", "stroke-width": 2, "stroke-dasharray": "5 4", opacity: 0.7 });
-      el(s, "circle", { cx: x(due), cy: y(proj), r: 3.5, fill: "var(--surface)", stroke: "var(--pass)", "stroke-width": 1.5 });
+      el(s, "circle", { cx: x(due), cy: y(proj), r: 4, fill: "var(--surface)", stroke: "var(--pass)", "stroke-width": 2 });
       el(s, "text", { x: x(due) - 6, y: y(proj) + 16, "text-anchor": "end", "class": "end-label" }, "~" + Math.round(proj) + " of " + runTot[L]);
     }
     dueMarker(s, x, T, H - B);
     viewedGuide(s, x, T, H - B);
-    el(s, "circle", { cx: x(DATES[V]), cy: y(n.tp[V]), r: 4, fill: "var(--pass)" });
+    Viz.dot(s, x(DATES[V]), y(n.tp[V]), "var(--pass)", 4.5);
     el(s, "text", { x: x(DATES[L]) + 6, y: y(runTot[L]) - 6, "class": "end-label" }, runTot[L] + " run");
-    $("burnup").innerHTML = ""; $("burnup").appendChild(s);
+    Viz.crosshair(s, n.total.map(function (t, i) { return t ? x(DATES[i]) : null; }), T, H - B, Lm, Wd - R, function (i) {
+      return { title: D.runs[i].run + " · " + D.runs[i].date, rows: [
+        { value: String(runTot[i]), label: "tests run", color: "var(--muted)" },
+        { value: String(n.tp[i]), label: "passing", color: "var(--pass)" },
+        { value: String(n.tf[i]), label: "failing" }] };
+    });
+    var bu = $("burnup"); bu.innerHTML = ""; bu.appendChild(s);
+    Viz.table(bu, "Show runs as a table", ["Run", "Date", "Tests run", "Passing", "Failing", "Sim pass rate"],
+      D.runs.map(function (r, i) { return [r.run, r.date, String(runTot[i]), String(n.tp[i]), String(n.tf[i]), pct(rate(n, i))]; }).filter(function (row, i) { return n.total[i]; }).reverse());
     var gap = runTot[L] - n.tp[L];
     $("prog-note").textContent = n.name + ": " + n.tp[L] + " of " + runTot[L] + " tests passing in the latest run, " + gap + " to go." +
       (n.burn != null ? " Recent pace " + (n.burn >= 0 ? "+" : "−") + Math.abs(n.burn * 7).toFixed(1) + " passing tests a week" : "") +
@@ -468,8 +490,9 @@
     el(s, "text", { x: Lm + 4, y: y(need()) - 5, style: "fill:var(--ink)" }, "need " + Math.round(need() * 100) + "%");
     var pts = []; rates.forEach(function (v, i) { if (v != null) pts.push([x(DATES[i]), y(v), i]); });
     if (pts.length) {
-      el(s, "path", { d: "M" + pts.map(function (p) { return p[0].toFixed(1) + "," + p[1].toFixed(1); }).join("L"), fill: "none", stroke: "var(--accent)", "stroke-width": 2, "stroke-linejoin": "round" });
-      pts.forEach(function (p) { var c = el(s, "circle", { cx: p[0], cy: p[1], r: p[2] === V ? 4.5 : 2.2, fill: p[2] === V ? "var(--accent)" : "var(--surface)", stroke: "var(--accent)", "stroke-width": 1.3 }); el(c, "title", {}, D.runs[p[2]].run + ": " + pct(rates[p[2]]) + " (" + n.pass[p[2]] + "/" + n.total[p[2]] + " sims)"); });
+      el(s, "path", { d: "M" + pts.map(function (p) { return p[0].toFixed(1) + "," + p[1].toFixed(1); }).join("L"), fill: "none", stroke: "var(--accent)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" });
+      var vp = pts.filter(function (p) { return p[2] === V; })[0];
+      if (vp) Viz.dot(s, vp[0], vp[1], "var(--accent)", 4.5);
       var lp = pts[pts.length - 1];
       if (f && f.eta && (f.status === "on_track" || f.status === "at_risk" || f.status === "projected")) {
         var etaX = x(dateOf(f.eta)), ex = Math.min(etaX, Wd - R);
@@ -481,6 +504,12 @@
     }
     dueMarker(s, x, T, H - B);
     viewedGuide(s, x, T, H - B);
+    Viz.crosshair(s, rates.map(function (v, i) { return v == null ? null : x(DATES[i]); }), T, H - B, Lm, Wd - R, function (i) {
+      return { title: D.runs[i].run + " · " + D.runs[i].date, rows: [
+        { value: pct(rates[i]), label: "sim pass rate", color: "var(--accent)" },
+        { value: n.pass[i] + " / " + n.total[i], label: "sims passed" },
+        { value: pct(need(), 0), label: "milestone bar" }] };
+    });
     $("ratechart").innerHTML = ""; $("ratechart").appendChild(s);
   }
 
@@ -511,23 +540,31 @@
     var max = Math.max.apply(null, ages.concat([1])), step = max <= 5 ? 1 : max <= 12 ? 2 : 5, top = Math.ceil(max / step) * step;
     function y(v) { return T + (1 - v / top) * (H - T - B); }
     for (var g = 0; g <= top; g += step) { el(s, "line", { x1: Lm, x2: Wd - R, y1: y(g), y2: y(g), "class": "grid-line" }); el(s, "text", { x: Lm - 6, y: y(g) + 4, "text-anchor": "end" }, g); }
-    var bw = (Wd - Lm - R) / 5;
+    var cw5 = (Wd - Lm - R) / 5, bw = Math.min(24, cw5 * 0.5);
     ages.forEach(function (v, i) {
-      var color = i >= 3 ? "var(--fail)" : i === 2 ? "var(--warn)" : "var(--accent)";
-      var r = el(s, "rect", { x: Lm + i * bw + bw * 0.18, y: y(v), width: bw * 0.64, height: y(0) - y(v), fill: color }); el(r, "title", {}, v + " tests failing " + buckets[i]);
-      if (v) el(s, "text", { x: Lm + i * bw + bw / 2, y: y(v) - 5, "text-anchor": "middle", "class": "end-label" }, v);
-      el(s, "text", { x: Lm + i * bw + bw / 2, y: H - 9, "text-anchor": "middle" }, buckets[i]);
+      // One series, one colour; the long-failing buckets are called out in words, not hue.
+      var cx = Lm + i * cw5 + cw5 / 2;
+      var b = Viz.bar(s, cx - bw / 2, y(v), bw, y(0) - y(v), "var(--accent)", true);
+      if (b) Viz.hover(b, function () { return { title: buckets[i], rows: [{ value: String(v), label: "failing tests", color: "var(--accent)", key: "box" }] }; });
+      if (v) el(s, "text", { x: cx, y: y(v) - 6, "text-anchor": "middle", "class": "end-label" }, v);
+      el(s, "text", { x: cx, y: H - 9, "text-anchor": "middle", style: i >= 3 ? "fill:var(--ink);font-weight:600" : "" }, buckets[i]);
     });
-    $("ages").innerHTML = ""; $("ages").appendChild(s);
+    el(s, "line", { x1: Lm, x2: Wd - R, y1: y(0), y2: y(0), "class": "axis-strong" });
+    var ag = $("ages"); ag.innerHTML = ""; ag.appendChild(s);
+    var longest = ages[3] + ages[4];
+    var note = document.createElement("p"); note.className = "muted"; note.style.cssText = "margin:0;font-size:.82rem";
+    note.textContent = longest ? longest + " test" + (longest === 1 ? " has" : "s have") + " been failing more than a week." : "Nothing has been failing for more than a week.";
+    ag.appendChild(note);
+    Viz.table(ag, "Show as a table", ["Failing for", "Tests"], buckets.map(function (b, i) { return [b, String(ages[i])]; }));
     $("fail-note").textContent = total + " failing test" + (total === 1 ? "" : "s") + " in " + byId[sel].name + " at " + D.runs[V].run + (C >= 0 ? ", " + nNew + " of them passing in " + D.runs[C].run : "") + ". Days count from the first failing run of the current streak.";
   }
 
   /* ---------- owners ---------- */
   function renderOwners() {
-    if (!O || !W.length) { $("owners-band").hidden = true; return; }
+    if (!O || !W.length) { $("owners-band").hidden = true; $("jump-owners").hidden = true; return; }
     $("owners-band").hidden = false;
     var wk = W[week], first = wk.s == null;
-    var h = "<thead><tr><th>Owner</th><th>Tests passing, start → end</th><th>Weekly target</th><th class=\"r\">New fails</th><th class=\"r\">Fixed</th><th class=\"r\">Added</th><th>Longest failing</th><th>Sim pass rate</th><th>Functional coverage</th><th class=\"r\">Bugs opened / closed / open</th><th class=\"r\">Median days to fix</th><th>Forecast</th><th>By week</th><th></th></tr></thead><tbody>";
+    var h = "<thead><tr><th>Owner</th><th>Tests passing, start → end</th><th>Weekly target</th><th>This week</th><th>Longest failing</th><th>Sim pass rate</th><th>Functional coverage</th><th class=\"r\">Bugs opened / closed / open</th><th class=\"r\">Median days to fix</th><th>Forecast</th><th>By week</th><th><span class=\"sr-only\">Tests</span></th></tr></thead><tbody>";
     O.list.forEach(function (o) {
       var x = o.weeks[week], px = week > 0 ? o.weeks[week - 1] : null;
       var d = x.tp_e - x.tp_s, r = x.sims ? x.sims_pass / x.sims : null, pr = px && px.sims ? px.sims_pass / px.sims : null;
@@ -540,9 +577,7 @@
         (first ? "" : " <span class=\"" + (d > 0 ? "up" : d < 0 ? "down" : "count0") + "\">" + (d > 0 ? "+" : d < 0 ? "−" : "±") + Math.abs(d) + "</span>") + "</div>" +
         "<div class=\"stack\" title=\"" + x.tp_e + " passing, " + x.fail_e + " failing at week end\"><span class=\"s-passing\" style=\"width:" + (100 * x.tp_e / tot) + "%\"></span><span class=\"s-failing\" style=\"width:" + (100 * x.fail_e / tot) + "%\"></span></div></td>" +
         "<td>" + tgt + "</td>" +
-        "<td class=\"r" + (x.new_fail ? " down" : " count0") + "\">" + x.new_fail + "</td>" +
-        "<td class=\"r" + (x.fixed ? " up" : " count0") + "\">" + x.fixed + "</td>" +
-        "<td class=\"r" + (x.added ? "" : " count0") + "\">" + x.added + "</td>" +
+        "<td style=\"white-space:nowrap;font-size:.84rem\"><span class=\"" + (x.fixed ? "up" : "count0") + "\">" + x.fixed + " fixed</span><br><span class=\"" + (x.new_fail ? "down" : "count0") + "\">" + x.new_fail + " new fail" + (x.new_fail === 1 ? "" : "s") + "</span><br><span class=\"count0\">" + x.added + " added</span></td>" +
         "<td>" + (x.oldest ? "<span class=\"num " + (x.oldest.days >= D.stuck_days ? "age-hot" : "") + "\">" + x.oldest.days + "d</span> <span class=\"mono\" style=\"font-size:.78rem\">" + esc(x.oldest.test) + "</span><div class=\"small\">" + esc(x.oldest.where) + (x.stuck ? " · " + x.stuck + " stuck" : "") + "</div>" : "<span class=\"muted\">none</span>") + "</td>" +
         "<td>" + (r == null ? "–" : "<span class=\"pill " + rateClass(r) + "\">" + pct(r) + "</span>" + (dr != null ? " <span class=\"" + (dr >= 0 ? "up" : "down") + "\" style=\"font-size:.8rem\">" + (dr >= 0 ? "+" : "−") + Math.abs(100 * dr).toFixed(1) + "</span>" : "") + "<div class=\"small\">" + x.sims_pass + " of " + x.sims + " sims</div>") + "</td>" +
         "<td>" + cov + "</td>" +
@@ -634,10 +669,12 @@
     var h = "<table class=\"tests\"><thead><tr><th>Test</th>" + (depth < 3 ? "<th>Where</th>" : "") + "<th>Last " + D.history + " runs to " + esc(shortDate(D.runs[V].date)) + "</th><th class=\"r\">Seeds</th><th>Status</th><th class=\"r\">Failing for</th><th>Since</th>" + (O ? "<th>Owner</th>" : "") + "<th>First error</th></tr></thead><tbody>";
     rows.forEach(function (r) {
       var t = r.t, x = r.x, st = STATUS[x.a] || "NOT RUN", cls = st === "PASS" ? "ok" : st === "TIMEOUT" ? "warn" : st === "NOT RUN" ? "" : "bad";
-      var strip = ""; for (var i = Math.max(0, V - D.history + 1); i <= V; i++) { var c = t.hist[i]; strip += "<span class=\"" + (STATUS[c] || "none") + "\" title=\"" + esc(D.runs[i].run) + ": " + (STATUS[c] ? STATUS[c].toLowerCase() : "not run") + "\"></span>"; }
+      var strip = "", tally = { P: 0, F: 0, T: 0, E: 0, "-": 0 };
+      for (var i = Math.max(0, V - D.history + 1); i <= V; i++) { var c = t.hist[i]; tally[c] = (tally[c] || 0) + 1; strip += "<span class=\"" + (STATUS[c] || "none") + "\" title=\"" + esc(D.runs[i].run) + ": " + (STATUS[c] ? STATUS[c].toLowerCase() : "not run") + "\"></span>"; }
+      var said = "Last " + D.history + " runs: " + tally.P + " passed, " + tally.F + " failed, " + tally.E + " errored, " + tally.T + " timed out" + (tally["-"] ? ", " + tally["-"] + " not run" : "");
       h += "<tr><td><span class=\"mono\">" + esc(t.test) + "</span>" + (x.isNew ? "<span class=\"tag-new\">new</span>" : x.isFixed ? "<span class=\"tag-fixed\">fixed</span>" : "") + "</td>" +
         (depth < 3 ? "<td class=\"where\">" + whereOf(t, depth).map(esc).join(" › ") + "</td>" : "") +
-        "<td><span class=\"strip\">" + strip + "</span></td>" +
+        "<td><span class=\"strip\" role=\"img\" aria-label=\"" + said + "\">" + strip + "</span></td>" +
         "<td class=\"r\">" + (V === L ? esc(t.seeds || "–") : "<span class=\"muted\" title=\"Seed counts are kept for the latest run only\">–</span>") + "</td>" +
         "<td>" + (cls ? "<span class=\"pill " + cls + "\">" + st.toLowerCase() + "</span>" : "<span class=\"muted\">not run</span>") + "</td>" +
         "<td class=\"r num" + (x.age != null && x.age >= D.stuck_days ? " age-hot" : "") + "\">" + (x.age == null ? "" : x.age + "d") + "</td>" +
@@ -671,7 +708,7 @@
   }
   function select(id) {
     if (!byId[id]) id = "all";
-    sel = id; limit = 150;
+    sel = id; limit = 40;
     var n = byId[id];
     for (var d = 1; d < n.path.length; d++) expanded[n.path.slice(0, d).map(slug).join("--")] = true;
     expanded[id] = true;
@@ -681,7 +718,7 @@
   }
   function setRuns() { C = cmpChoice === "prev" ? V - 1 : +cmpChoice; if (C === V) C = V - 1; }
 
-  $("run-view").addEventListener("change", function (e) { V = +e.target.value; setRuns(); limit = 150; renderAll(); });
+  $("run-view").addEventListener("change", function (e) { V = +e.target.value; setRuns(); limit = 40; renderAll(); });
   $("run-cmp").addEventListener("change", function (e) { cmpChoice = e.target.value; setRuns(); renderAll(); });
   document.addEventListener("click", function (e) {
     var t = e.target.closest("[data-node],[data-toggle],[data-filter],[data-week],[data-owner],[data-clear-owner],[data-view],[data-latest],#more,#expand-all,#collapse-all");
@@ -699,12 +736,12 @@
     if (t.hasAttribute("data-clear-owner")) { ownerFilter = null; renderOwners(); renderFilters(); renderTests(); return; }
     if (t.hasAttribute("data-toggle")) { var id = t.getAttribute("data-toggle"); expanded[id] = !expanded[id]; renderTree(); var b = document.querySelector("[data-toggle=\"" + id + "\"]"); if (b) b.focus(); return; }
     if (t.hasAttribute("data-node")) { select(t.getAttribute("data-node")); return; }
-    if (t.hasAttribute("data-filter")) { filter = t.getAttribute("data-filter"); limit = 150; renderFilters(); renderTests(); return; }
+    if (t.hasAttribute("data-filter")) { filter = t.getAttribute("data-filter"); limit = 40; renderFilters(); renderTests(); return; }
     if (t.id === "more") { limit = Infinity; renderTests(); return; }
     if (t.id === "expand-all") { D.nodes.forEach(function (n) { expanded[n.id] = true; }); renderTree(); return; }
     if (t.id === "collapse-all") { expanded = { all: true }; renderTree(); return; }
   });
-  $("search").addEventListener("input", function (e) { query = e.target.value.trim(); limit = 150; renderTests(); });
+  $("search").addEventListener("input", function (e) { query = e.target.value.trim(); limit = 40; renderTests(); });
   window.addEventListener("hashchange", function () { select(location.hash.replace(/^#/, "") || "all"); });
   setRuns();
   select(location.hash.replace(/^#/, "") || "all");

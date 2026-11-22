@@ -266,6 +266,25 @@ Every criterion is optional:
 Add `"as_of": "YYYY-MM-DD"` to fix the date used for bug ages and trends; it defaults to the
 latest run's date.
 
+## Charts and accessibility
+
+* **Colours are checked, not eyeballed.** The pass / fail / error / timeout colours were
+  validated for colour-blind and normal-vision separation in both themes, in the order they
+  stack. Text uses darker "ink" steps of the same colours so it stays at 4.5:1 contrast or
+  better, including on the tinted pills.
+* **Every chart has a hover layer and a table.** Line charts show a crosshair with every
+  value at that run; bars show their own values. With a chart focused, the arrow keys, Home
+  and End move along it. "Show … as a table" under each chart lists the same numbers, so
+  nothing is hover-only.
+* **Marks:** 2px lines, ringed end dots, bars at most 24px wide with rounded ends and 2px
+  gaps between stacked parts; one y-axis per chart.
+* **Structure:** one `main` landmark, headings in order, labelled controls and history
+  strips, toggles that report their state, focus rings everywhere, 24px or larger targets,
+  live announcements when a filter changes the list. No sideways page scroll at phone width
+  or 200% zoom. Checked with axe-core (WCAG 2.1 AA): no violations.
+
+The chart helpers live in `templates/viz.js` and are inlined into each page at build time.
+
 ## In CI
 
 ```sh

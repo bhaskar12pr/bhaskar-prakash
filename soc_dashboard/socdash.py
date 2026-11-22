@@ -1040,7 +1040,9 @@ def render_overview(overview: dict, fragment: bool = False) -> str:
 
 
 def _render(template_name: str, title: str, payload: dict, fragment: bool) -> str:
-    template = (TEMPLATES / template_name).read_text().replace("/*__CSS__*/", (TEMPLATES / "base.css").read_text())
+    template = (TEMPLATES / template_name).read_text()
+    template = template.replace("/*__CSS__*/", (TEMPLATES / "base.css").read_text())
+    template = template.replace("/*__VIZ__*/", (TEMPLATES / "viz.js").read_text())
     head, body = template.split("<!--BODY-->", 1)
     blob = json.dumps(payload, separators=(",", ":")).replace("</", "<\\/")
     head = head.replace("__TITLE__", _html_escape(title))

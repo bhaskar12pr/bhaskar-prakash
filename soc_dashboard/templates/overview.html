@@ -22,7 +22,7 @@
 .counts b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
 </style>
 <!--BODY-->
-<div class="wrap">
+<main class="wrap">
   <header class="top">
     <div style="display:grid;gap:6px">
       <span class="label">SoC verification</span>
@@ -46,12 +46,13 @@
   </section>
 
   <footer id="footer"></footer>
-</div>
+</main>
 
 <script type="application/json" id="socdash-data">__SOCDASH_DATA__</script>
 <script>
 (function () {
   "use strict";
+/*__VIZ__*/
   var D = JSON.parse(document.getElementById("socdash-data").textContent);
   var SVGNS = "http://www.w3.org/2000/svg";
   function $(id) { return document.getElementById(id); }
@@ -111,7 +112,7 @@
     "<span><b>" + s1 + "</b> unresolved S1 bug" + (s1 === 1 ? "" : "s") + "</span>" +
     (bad ? "<span><b>" + bad + "</b> with unreadable inputs</span>" : "");
 
-  var h = "<thead><tr><th>Project</th><th>Next milestone</th><th>Pass rate and forecast</th><th class=\"r\">Coverage at target</th><th class=\"r\">S1 / S2 open</th><th class=\"r\">Testplan passing</th><th>Latest run</th></tr></thead><tbody>";
+  var h = "<thead><tr><th>Project</th><th>Next milestone</th><th>Sim pass rate and forecast</th><th class=\"r\">Coverage at target</th><th class=\"r\">S1 / S2 open</th><th class=\"r\">Testplan passing</th><th>Latest run</th></tr></thead><tbody>";
   D.projects.forEach(function (p) {
     if (p.error) {
       h += "<tr class=\"err\"><td><span class=\"proj\" style=\"font:600 1.05rem var(--font-display)\">" + esc(p.name) + "</span></td><td colspan=\"6\"><span class=\"pill bad\">inputs could not be read</span><div class=\"gaps sig\">" + esc(p.error) + "</div></td></tr>";
