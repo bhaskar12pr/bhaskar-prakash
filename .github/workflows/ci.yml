@@ -2,9 +2,10 @@
 # Mirrors .gitlab-ci.yml: both just call the Makefile, so moving to GitLab
 # later needs no changes to the flow.
 #
-#   lint ──┬─► simulate   (Icarus testbenches + JUnit report)
-#          ├─► cocotb     (Python testbenches on Icarus)
-#          └─► synth      (Yosys generic synthesis, latch check)
+#   lint ──┬─► simulate   Verilog testbenches on Icarus  + JUnit report
+#          ├─► cocotb     Python testbenches on Icarus   + JUnit report
+#          ├─► formal     Yosys SAT proof of the assertions in formal/
+#          └─► synth      Yosys synthesis, fails on latches
 
 name: RTL CI
 
@@ -13,9 +14,19 @@ on:
   pull_request:
   workflow_dispatch:
 
+# A new push to the same branch cancels the run that is still going.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least privilege: jobs can only read the repo.
+permissions:
+  contents: read
+
 jobs:
   lint:
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - name: Install tools
@@ -26,6 +37,7 @@ jobs:
   simulate:
     needs: lint
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - name: Install tools
@@ -34,7 +46,9 @@ jobs:
         run: make -k sim
       - name: Test report
         if: always()
-        run: python3 scripts/logs_to_junit.py tb/tb_*.v --out build/junit.xml --summary "$GITHUB_STEP_SUMMARY"
+        run: |
+          make junit || true
+          python3 scripts/junit_summary.py build/junit.xml --title "Verilog testbench results" >> "$GITHUB_STEP_SUMMARY"
       - name: Upload logs and waveforms
         if: always()
         uses: actions/upload-artifact@v4
@@ -49,6 +63,7 @@ jobs:
   cocotb:
     needs: lint
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -72,9 +87,28 @@ jobs:
           path: build/cocotb_results.xml
           retention-days: 7
 
+  formal:
+    needs: lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq yosys
+      - name: Prove properties (Yosys SAT)
+        run: make -k formal
+      - name: Upload proof logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: formal
+          path: build/formal_*.log
+          retention-days: 7
+
   synth:
     needs: lint
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - name: Install tools

@@ -1,6 +1,7 @@
 // Self-checking testbench for mux4to1.
 // Drives every combination of i and s (16 x 4 = 64 vectors), compares the
 // DUT output with a reference model, and ends with PASS or FAIL.
+// On failure it calls $fatal, so the simulator exits with a non-zero code.
 `timescale 1ns/1ps
 
 module tb_mux4to1;
@@ -38,12 +39,12 @@ initial begin
         end
     end
 
-    if (errors == 0)
+    if (errors == 0) begin
         $display("TEST PASSED: %0d/%0d checks", checks, checks);
-    else
-        $display("TEST FAILED: %0d errors in %0d checks", errors, checks);
-
-    $finish;
+        $finish;
+    end else begin
+        $fatal(1, "TEST FAILED: %0d errors in %0d checks", errors, checks);
+    end
 end
 
 endmodule
