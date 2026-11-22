@@ -1,3 +1,6 @@
 build/
 *.vvp
 *.vcd
+__pycache__/
+tb/cocotb/sim_build/
+results.xml

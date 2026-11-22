@@ -2,6 +2,7 @@
 # Mirrors .github/workflows/ci.yml: both just call the Makefile.
 #
 #   lint ──┬─► simulate   (Icarus testbenches + JUnit report in the MR "Tests" tab)
+#          ├─► cocotb     (Python testbenches on Icarus, also in the "Tests" tab)
 #          └─► synth      (Yosys generic synthesis, latch check)
 
 image: ubuntu:24.04
@@ -42,6 +43,24 @@ simulate:
       - build/*.vcd
     reports:
       junit: build/junit.xml
+
+cocotb:
+  stage: test
+  variables:
+    TOOLS: iverilog python3-venv
+  script:
+    - *install
+    - python3 -m venv .venv
+    - . .venv/bin/activate
+    - pip install -q -r requirements.txt
+    - make cocotb
+  artifacts:
+    when: always
+    expire_in: 1 week
+    paths:
+      - build/cocotb_results.xml
+    reports:
+      junit: build/cocotb_results.xml
 
 synth:
   stage: test
