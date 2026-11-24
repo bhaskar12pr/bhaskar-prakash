@@ -3,6 +3,7 @@ import csv
 import json
 import shutil
 import tempfile
+import sys
 import unittest
 from pathlib import Path
 
@@ -457,6 +458,43 @@ class ProgressTest(unittest.TestCase):
             html = (out / "index.html").read_text()
             self.assertIn('"owners":[{"owner":', html)
             self.assertIn('"forecast":{"status":', html)
+
+
+class SafetyTest(unittest.TestCase):
+    """Static guarantees about the generated pages. checks/browser_safety_check.js proves the
+    same things in a real browser, including that hostile names never run."""
+
+    TEMPLATES = sorted((HERE / "templates").glob("*.html")) + [HERE / "templates" / "viz.js"]
+
+    def test_no_external_scripts_or_network_calls(self):
+        import re
+        for path in self.TEMPLATES:
+            text = path.read_text()
+            self.assertIsNone(re.search(r"<script[^>]+src=", text), f"{path.name} loads an external script")
+            for banned in ("fetch(", "XMLHttpRequest", "WebSocket", "sendBeacon", "EventSource", "eval(", "new Function", "document.write"):
+                self.assertNotIn(banned, text, f"{path.name} uses {banned}")
+            links = re.findall(r"https?://[^\s\"')]+", text)
+            self.assertTrue(all("fonts.googleapis.com" in u or "w3.org/2000/svg" in u for u in links),
+                            f"{path.name} links outside Google Fonts: {links}")
+
+    def test_palette_builds_results_as_text(self):
+        text = (HERE / "templates" / "regression.html").read_text()
+        palette = text[text.index("var Palette = (function"):text.index("window.addEventListener(\"hashchange\"")]
+        self.assertNotIn("innerHTML", palette)
+        self.assertIn("textContent", palette)
+
+    def test_hostile_names_are_escaped_in_built_pages(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmp:
+            out = subprocess.run([sys.executable, str(HERE / "checks" / "make_hostile_project.py"), tmp],
+                                 capture_output=True, text=True)
+            self.assertEqual(out.returncode, 0, out.stderr)
+            site = Path(tmp, "site")
+            for page in site.glob("*.html"):
+                html = page.read_text()
+                # Only the page's own two script blocks close; payloads inside data are escaped.
+                self.assertEqual(html.count("</script>"), 2, page.name)
+                self.assertNotIn('<img src=x onerror="window.__pwned=1">', html.split('<script type="application/json"')[0])
 
 
 class CollectLayoutTest(unittest.TestCase):

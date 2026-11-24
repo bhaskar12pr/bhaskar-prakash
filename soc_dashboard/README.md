@@ -285,6 +285,37 @@ latest run's date.
 
 The chart helpers live in `templates/viz.js` and are inlined into each page at build time.
 
+## Quick search
+
+On the regression page press **Ctrl+K** (**⌘K** on a Mac), **/**, or the **Search** button,
+then type part of a subsystem, module, instance, test or owner name. Arrow keys move,
+Enter opens, Esc closes. Choosing a test filters the test list to it; choosing an owner shows
+their tests; choosing a part of the design selects it in the tree. Everything searched is
+already in the page, so nothing is sent anywhere.
+
+## Safety checks
+
+The pages are static files with no external scripts and no network calls apart from Google
+Fonts. Names from your CSV files (tests, owners, signatures, project names) are always shown
+as text, never run as HTML or script. Two layers prove it:
+
+* `python3 -m unittest test_socdash` (no extra tools needed) checks that no template loads an
+  external script or uses `fetch`, `XMLHttpRequest`, `WebSocket`, `eval` and the like, that the
+  quick-search code builds its results with `textContent`, and that a project whose names are
+  script-injection payloads builds into pages where those payloads stay escaped.
+* `checks/browser_safety_check.js` repeats this in a real browser (needs Node and Playwright;
+  axe-core optional):
+
+  ```sh
+  python3 socdash.py build-all --out site
+  python3 checks/make_hostile_project.py /tmp/hostile
+  node checks/browser_safety_check.js site /tmp/hostile/site
+  ```
+
+  It serves every page under a strict Content-Security-Policy, blocks and reports any request
+  that leaves the machine, confirms the injected payloads never run, drives the quick search
+  with the keyboard, and runs an axe-core WCAG 2.1 AA scan with it open.
+
 ## In CI
 
 ```sh
