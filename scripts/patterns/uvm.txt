@@ -1,0 +1,13 @@
+# Pass/fail patterns for UVM testbenches (used by scripts/regress.py).
+# Use it in project.mk:  <block>_PATTERNS := scripts/patterns/uvm.txt
+# The UVM report summary at the end of the run decides pass/fail.
+
+pass: UVM_ERROR\s*:\s*0\b
+
+fail: UVM_(ERROR|FATAL)\s*:\s*[1-9]
+# A message line such as 'UVM_ERROR tb.sv(12) @ 100: ...' (not the ': 0' summary)
+fail: ^(# )?UVM_(ERROR|FATAL)\s+[^:\s]
+# Simulator messages (Questa, VCS, Xcelium)
+fail: ^(# )?\*\* (Error|Fatal)
+fail: ^Error-\[
+fail: \*[EF],\w+

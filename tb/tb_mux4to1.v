@@ -22,7 +22,7 @@ mux4to1 dut (
 );
 
 initial begin
-    $dumpfile("build/tb_mux4to1.vcd");
+    $dumpfile("waves.vcd");
     $dumpvars(0, tb_mux4to1);
 
     for (vi = 0; vi < 16; vi = vi + 1) begin

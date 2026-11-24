@@ -6,3 +6,4 @@ tb/cocotb/sim_build/
 results.xml
 .cache/
 .venv/
+/build*/

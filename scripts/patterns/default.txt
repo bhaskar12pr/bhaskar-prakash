@@ -1,0 +1,18 @@
+# Pass/fail patterns for self-checking testbenches (used by scripts/regress.py).
+#   pass:   a test must print at least one line matching a pass pattern
+#   fail:   any matching line fails the test
+#   ignore: matching lines are skipped before the fail check (waivers)
+# Regexes are Python syntax and are matched anywhere in the line.
+
+pass: TEST PASSED
+
+# Testbench messages
+fail: \bERROR\b
+fail: \bFATAL\b
+fail: TEST FAILED
+# Simulator messages (Questa, VCS, Xcelium)
+fail: ^(# )?\*\* (Error|Fatal)
+fail: ^Error-\[
+fail: \*[EF],\w+
+# Assertion failures
+fail: [Aa]ssertion .*fail

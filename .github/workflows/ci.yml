@@ -1,11 +1,5 @@
-# GitHub Actions pipeline for the RTL in rtl/ and testbenches in tb/.
-# Mirrors .gitlab-ci.yml: both just call the Makefile, so moving to GitLab
-# later needs no changes to the flow.
-#
-#   lint ──┬─► simulate   Verilog testbenches on Icarus  + JUnit report
-#          ├─► cocotb     Python testbenches on Icarus   + JUnit report
-#          ├─► formal     Yosys SAT proof of the assertions in formal/
-#          └─► synth      Yosys synthesis, fails on latches
+# GitHub Actions for the verification flow. Mirrors .gitlab-ci.yml: jobs only
+# call make, and the project-specific settings live in project.mk.
 
 name: RTL CI
 
@@ -13,112 +7,73 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+  schedule:
+    - cron: "17 2 * * *"     # nightly: random seeds, NIGHTLY_SEEDS per test
 
-# A new push to the same branch cancels the run that is still going.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# Least privilege: jobs can only read the repo.
 permissions:
   contents: read
 
+env:
+  SIM: icarus
+  SEEDS: ${{ github.event_name == 'schedule' && '20' || '1' }}
+  RANDOM_SEEDS: ${{ github.event_name == 'schedule' && '1' || '0' }}
+  APT_TOOLS: make iverilog verilator yosys
+
 jobs:
+  selftest:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unit tests of the flow scripts
+        run: make selftest
+
   lint:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - name: Install tools
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq iverilog verilator
-      - name: Lint (Verilator + Icarus)
-        run: make lint
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq $APT_TOOLS
+      - run: make check-env STAGES="lint sim formal synth"
+      - run: make lint
 
-  simulate:
-    needs: lint
+  test:
+    needs: [selftest, lint]
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install tools
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq iverilog
-      - name: Run testbenches
-        run: make -k sim
-      - name: Test report
-        if: always()
-        run: |
-          make junit || true
-          python3 scripts/junit_summary.py build/junit.xml --title "Verilog testbench results" >> "$GITHUB_STEP_SUMMARY"
-      - name: Upload logs and waveforms
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: simulation
-          path: |
-            build/*.log
-            build/*.vcd
-            build/junit.xml
-          retention-days: 7
-
-  cocotb:
-    needs: lint
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        stage: [sim, cocotb, formal, synth]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
+        if: matrix.stage == 'cocotb'
         with:
           python-version: "3.12"
           cache: pip
       - name: Install tools
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq iverilog
-          pip install -r requirements.txt
-      - name: Run cocotb tests
-        run: make cocotb
-      - name: Test report
-        if: always()
-        run: python3 scripts/junit_summary.py build/cocotb_results.xml --title "cocotb results" >> "$GITHUB_STEP_SUMMARY"
-      - name: Upload results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: cocotb
-          path: build/cocotb_results.xml
-          retention-days: 7
-
-  formal:
-    needs: lint
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install tools
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq yosys
-      - name: Prove properties (Yosys SAT)
-        run: make -k formal
-      - name: Upload proof logs
+          sudo apt-get update -qq && sudo apt-get install -y -qq $APT_TOOLS
+          if [ "${{ matrix.stage }}" = cocotb ]; then pip install -r requirements.txt; fi
+      - name: make ${{ matrix.stage }}
+        run: make -k ${{ matrix.stage }}
+      - name: Report
+        if: always() && (matrix.stage == 'sim' || matrix.stage == 'cocotb')
+        run: python3 scripts/junit_summary.py "build/*/junit_${{ matrix.stage }}.xml" --title "${{ matrix.stage }} results" >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: formal
-          path: build/formal_*.log
-          retention-days: 7
-
-  synth:
-    needs: lint
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install tools
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq yosys
-      - name: Synthesize (Yosys)
-        run: make synth
-      - name: Upload synthesis reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: synthesis
-          path: build/synth_*
+          name: ${{ matrix.stage }}-logs
+          path: |
+            build/*/*.log
+            build/*/sim/*/sim.log
+            build/*/sim/*/*.vcd
+            build/*/junit_*.xml
+          if-no-files-found: ignore
           retention-days: 7
