@@ -1,0 +1,3 @@
+# Built dashboard output (regenerate with: python3 soc_dashboard/socdash.py build-all)
+soc-dashboard-site/
+soc-dashboard-site.zip
