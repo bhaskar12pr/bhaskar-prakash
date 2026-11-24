@@ -977,6 +977,7 @@ def build_payload(data: dict, home: str | None = None) -> dict:
         "sources": [*cfg["files"].values(), "config.json"],
         "home": home,
         "regression_href": None,
+        "need": current_milestone(cfg)["need"],
         # block -> its module node on the regression page, so block links land in the right place
         "block_nodes": {r["block"]: node_slug(hierarchy_path(r, cfg["block_subsystem"])[:2]) for r in data["runs"]},
     }
@@ -1004,6 +1005,8 @@ def project_card(payload: dict, href: str) -> dict:
         "met": bool(current and current["met"]),
         "stale_after_days": payload["stale_after_days"],
         "forecast": top["forecast"],
+        # for the overview's run waveform
+        "need": payload["need"], "runs": [t["run"] for t in top["trend"]], "dates": [t["date"] for t in top["trend"]],
     }
 
 

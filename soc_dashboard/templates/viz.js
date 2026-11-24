@@ -201,3 +201,141 @@
     }
     return { reduced: reduced, numbers: numbers, draw: draw, drawLines: drawLines };
   })();
+
+  /* Run waveform: a logic-analyzer style sample-and-hold trace of the pass rate per run, with
+     the milestone bar as a dashed threshold and a clock tick per run. Shared by every page.
+     opts: { name, rates[], runs[], dates[], need, mark (index to highlight), compact } */
+  Viz.wave = (function () {
+  var NS = "http://www.w3.org/2000/svg";
+  function node(parent, tag, attrs, text) { var e = document.createElementNS(NS, tag); for (var k in attrs) e.setAttribute(k, attrs[k]); if (text != null) e.textContent = text; parent.appendChild(e); return e; }
+  return function wave(box, o) {
+    var compact = !!o.compact, N = o.rates.length;
+    var Wd = compact ? 120 : 340, H = compact ? 34 : 70, Lm = compact ? 2 : 8, R = compact ? 2 : 30, T = compact ? 6 : 16, B = compact ? 4 : 16;
+    var s = document.createElementNS(NS, "svg");
+    s.setAttribute("viewBox", "0 0 " + Wd + " " + H); s.setAttribute("class", "chart"); s.setAttribute("role", "img");
+    var ran = o.rates.filter(function (r) { return r != null; });
+    var need = o.need == null ? 0.9 : o.need, met = ran.filter(function (r) { return r >= need; }).length;
+    var pc = function (v) { return (100 * v).toFixed(1) + "%"; };
+    s.setAttribute("aria-label", "Pass rate per run for " + o.name + (ran.length ? ", from " + pc(ran[0]) + " to " + pc(ran[ran.length - 1]) : "") + "; " + met + " of " + ran.length + " runs at or above " + Math.round(need * 100) + "%");
+    var lo = Math.max(0, Math.floor((Math.min.apply(null, ran.concat([need])) - 0.03) * 20) / 20), hi = 1;
+    function y(v) { return T + (hi - v) / ((hi - lo) || 1) * (H - T - B); }
+    var cw = (Wd - Lm - R) / Math.max(1, N);
+    function x(i) { return Lm + cw * i; }
+    if (!compact) for (var i = 0; i < N; i++) node(s, "line", { x1: x(i), x2: x(i), y1: 4, y2: i === o.mark ? 12 : 9, stroke: i === o.mark ? "var(--accent)" : "var(--line)", "stroke-width": i === o.mark ? 2 : 1 });
+    var d = "", area = "", prev = null;
+    o.rates.forEach(function (r, i) {
+      if (r == null) { prev = null; return; }
+      var yy = y(r).toFixed(1);
+      d += (prev === null ? "M" + x(i) + "," + yy : "V" + yy) + "H" + (x(i) + cw);
+      area += "M" + x(i) + "," + yy + "H" + (x(i) + cw) + "V" + y(lo) + "H" + x(i) + "Z";
+      prev = r;
+    });
+    node(s, "path", { d: area, fill: "var(--accent)", "fill-opacity": 0.12 });
+    node(s, "line", { x1: Lm, x2: Wd - R, y1: y(need), y2: y(need), stroke: "var(--ink)", "stroke-dasharray": "3 3" });
+    if (!compact) node(s, "text", { x: Wd - R + 4, y: y(need) + 4, style: "fill:var(--ink)" }, Math.round(need * 100) + "%");
+    node(s, "path", { d: d, fill: "none", stroke: "var(--accent)", "stroke-width": 2, "stroke-linejoin": "miter", "data-line": "1" });
+    var m = o.mark == null ? N - 1 : o.mark;
+    if (o.rates[m] != null) Viz.dot(s, x(m) + cw / 2, y(o.rates[m]), "var(--accent)", compact ? 3 : 4);
+    if (!compact) {
+      node(s, "text", { x: Lm, y: H - 3 }, (o.dates[0] || "").slice(5));
+      node(s, "text", { x: Wd - R, y: H - 3, "text-anchor": "end" }, (o.dates[N - 1] || "").slice(5));
+    }
+    Viz.crosshair(s, o.rates.map(function (r, i) { return r == null ? null : x(i) + cw / 2; }), T, H - B, Lm, Wd - R, function (i) {
+      var r = o.rates[i];
+      return { title: (o.runs[i] || "") + " · " + (o.dates[i] || ""), rows: [{ value: pc(r), label: r >= need ? "at or above the bar" : (100 * (need - r)).toFixed(1) + " pts below the bar", color: "var(--accent)" }] };
+    });
+    box.textContent = "";
+    if (!compact) {
+      var cap = document.createElement("figcaption");
+      var nm = document.createElement("span"); nm.className = "mono"; nm.textContent = "sim_pass[" + o.name + "]";
+      var ct = document.createElement("span"); ct.textContent = met + "/" + ran.length + " runs ≥ " + Math.round(need * 100) + "%";
+      cap.appendChild(nm); cap.appendChild(ct); box.appendChild(cap);
+    }
+    box.appendChild(s);
+  };
+  })();
+
+  /* Quick search (Ctrl+K, Cmd+K or /): a native <dialog> listbox shared by every page.
+     Each page supplies items {kind, label, sub, rank, go}. Results are built only with
+     createElement + textContent, since names come from CSV files; nothing leaves the page. */
+  var Quick = (function () {
+    var dlg, input, list, empty, build, items = null, shown = [], active = 0;
+    function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+    function search(q) {
+      var words = q.toLowerCase().split(/\s+/).filter(Boolean), first = words[0] || "";
+      var out = items.filter(function (it) {
+        var hay = (it.label + " " + it.sub + " " + it.kind).toLowerCase();
+        return words.every(function (w) { return hay.indexOf(w) >= 0; });
+      });
+      function score(it) { var l = it.label.toLowerCase(); return l === first ? 0 : l.indexOf(first) === 0 ? 1 : l.indexOf(first) >= 0 ? 2 : 3; }
+      out.sort(function (a, b) {
+        var la = a.label.toLowerCase(), lb = b.label.toLowerCase();
+        return score(a) - score(b) || (a.rank || 0) - (b.rank || 0) || (la < lb ? -1 : la > lb ? 1 : 0);
+      });
+      return out.slice(0, 50);
+    }
+    function mark() {
+      Array.prototype.forEach.call(list.children, function (li, i) { li.setAttribute("aria-selected", String(i === active)); });
+      if (shown.length) { input.setAttribute("aria-activedescendant", "pal-opt-" + active); var a = document.getElementById("pal-opt-" + active); if (a) a.scrollIntoView({ block: "nearest" }); }
+    }
+    function render() {
+      shown = search(input.value.trim());
+      active = Math.min(active, Math.max(0, shown.length - 1));
+      list.textContent = "";
+      list.hidden = !shown.length;
+      empty.textContent = shown.length ? "" : "Nothing matches. Try another name.";
+      if (!shown.length) { input.removeAttribute("aria-activedescendant"); return; }
+      shown.forEach(function (it, i) {
+        var li = el("li");
+        li.id = "pal-opt-" + i; li.setAttribute("role", "option"); li.setAttribute("aria-selected", String(i === active));
+        li.appendChild(el("span", "pal-kind", it.kind)); li.appendChild(el("span", "pal-label", it.label)); li.appendChild(el("span", "pal-sub", it.sub));
+        li.addEventListener("click", function () { choose(i); });
+        li.addEventListener("pointermove", function () { if (active !== i) { active = i; mark(); } });
+        list.appendChild(li);
+      });
+      mark();
+    }
+    function choose(i) { var it = shown[i]; if (!it) return; close(); it.go(); }
+    function open() {
+      if (dlg.open) return;
+      if (!items) items = build();
+      input.value = ""; active = 0; render();
+      if (dlg.showModal) dlg.showModal(); else dlg.setAttribute("open", "");
+      input.focus();
+    }
+    function close() { if (dlg.open) dlg.close(); }
+    /* builder() returns the items; host is where the Search button goes. */
+    function setup(builder, host, placeholder) {
+      build = builder;
+      var btn = el("button", "pal-open");
+      btn.type = "button"; btn.id = "pal-open";
+      btn.setAttribute("aria-keyshortcuts", "Control+K Meta+K /"); btn.setAttribute("aria-haspopup", "dialog");
+      btn.appendChild(document.createTextNode("Search "));
+      btn.appendChild(el("kbd", null, /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? "⌘ K" : "Ctrl K"));
+      host.appendChild(btn);
+      dlg = el("dialog"); dlg.id = "palette"; dlg.setAttribute("aria-labelledby", "pal-title");
+      var title = el("h2", "sr-only", "Search this page"); title.id = "pal-title";
+      input = el("input"); input.id = "pal-input"; input.type = "text"; input.autocomplete = "off"; input.spellcheck = false;
+      input.setAttribute("role", "combobox"); input.setAttribute("aria-expanded", "true"); input.setAttribute("aria-controls", "pal-list");
+      input.setAttribute("aria-autocomplete", "list"); input.setAttribute("aria-label", "Search"); input.placeholder = placeholder || "Search…";
+      list = el("ul"); list.id = "pal-list"; list.setAttribute("role", "listbox"); list.setAttribute("aria-label", "Results");
+      empty = el("p", "pal-empty"); empty.id = "pal-empty"; empty.setAttribute("aria-live", "polite");
+      dlg.appendChild(title); dlg.appendChild(input); dlg.appendChild(list); dlg.appendChild(empty);
+      dlg.appendChild(el("p", "pal-hint", "↑ ↓ to move · Enter to open · Esc to close"));
+      (document.querySelector("main") || document.body).appendChild(dlg);
+      input.addEventListener("input", function () { active = 0; render(); });
+      input.addEventListener("keydown", function (e) {
+        if (e.key === "ArrowDown") { e.preventDefault(); active = Math.min(shown.length - 1, active + 1); mark(); }
+        else if (e.key === "ArrowUp") { e.preventDefault(); active = Math.max(0, active - 1); mark(); }
+        else if (e.key === "Enter") { e.preventDefault(); choose(active); }
+      });
+      dlg.addEventListener("click", function (e) { if (e.target === dlg) close(); });
+      btn.addEventListener("click", open);
+      document.addEventListener("keydown", function (e) {
+        var typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable;
+        if ((e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "K")) { e.preventDefault(); open(); }
+        else if (e.key === "/" && !typing && !dlg.open) { e.preventDefault(); open(); }
+      });
+    }
+    return { setup: setup, open: open, close: close };
+  })();

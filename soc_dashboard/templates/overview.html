@@ -29,9 +29,10 @@
       <h1 id="title"></h1>
       <div class="counts" id="counts"></div>
     </div>
+    <div class="top-actions" id="top-actions"></div>
   </header>
 
-  <section class="band">
+  <section class="band" id="projects-band">
     <div class="band-head"><h2>Projects</h2><p>Each row is the project's whole SoC in its latest run. Open a project for block-level detail.</p></div>
     <div class="panel">
       <div class="scroll"><table class="portfolio" id="portfolio"></table></div>
@@ -93,14 +94,6 @@
     $("own-note").textContent = Object.keys(people).length + " people across " + D.projects.filter(function (p) { return !p.error; }).length + " projects, latest week of each." + (withT ? " " + met + " of " + withT + " weekly targets met." : "");
   }
 
-  function spark(values) {
-    var w = 96, h = 24, v = values.filter(function (x) { return x != null; });
-    if (v.length < 2) return "";
-    var lo = Math.min.apply(null, v), hi = Math.max.apply(null, v); if (hi - lo < 1e-9) hi = lo + 0.01;
-    var pts = values.map(function (x, i) { return x == null ? null : [(i * (w - 6) / (values.length - 1) + 3).toFixed(1), (h - 3 - (x - lo) / (hi - lo) * (h - 6)).toFixed(1)]; }).filter(Boolean);
-    var last = pts[pts.length - 1];
-    return "<svg viewBox=\"0 0 " + w + " " + h + "\" aria-hidden=\"true\"><path d=\"M" + pts.map(function (p) { return p.join(","); }).join("L") + "\" fill=\"none\" stroke=\"var(--accent)\" stroke-width=\"1.5\" stroke-linejoin=\"round\"/><circle cx=\"" + last[0] + "\" cy=\"" + last[1] + "\" r=\"2.5\" fill=\"var(--accent)\"/></svg>";
-  }
 
   var today = D.generated.slice(0, 10);
   var ok = D.projects.filter(function (p) { return !p.error && p.met; }).length;
@@ -124,7 +117,7 @@
       "<td>" + (p.milestone ? "<div style=\"display:flex;gap:8px;align-items:center;flex-wrap:wrap\"><b>" + esc(p.milestone) + "</b><span class=\"pill " + (p.met ? "ok" : "bad") + "\">" + (p.met ? "ready" : p.checks_ok + " of " + p.checks + " met") + "</span></div>" +
         (p.due ? "<div class=\"small\">due " + esc(p.due) + "</div>" : "") +
         (p.failing.length ? "<div class=\"gaps\">Short on: " + p.failing.map(esc).join("; ") + "</div>" : "") : "<span class=\"muted\">none set</span>") + "</td>" +
-      "<td><div class=\"rate-cell\"><span class=\"big\">" + pct(p.rate) + "</span>" + spark(p.rates) + "</div><div class=\"small\">" + p.sims + " sims</div>" + fcPill(p.forecast) + "</td>" +
+      "<td><div class=\"rate-cell\"><span class=\"big\">" + pct(p.rate) + "</span><figure class=\"wave compact\" data-wave=\"" + D.projects.indexOf(p) + "\"></figure></div><div class=\"small\">" + p.sims + " sims</div>" + fcPill(p.forecast) + "</td>" +
       "<td class=\"r\"><span class=\"big\">" + p.cov_met + "</span><span class=\"muted\"> / " + p.cov_cells + "</span></td>" +
       "<td class=\"r\"><span class=\"big" + (p.bugs.S1 ? " down" : "") + "\">" + p.bugs.S1 + "</span><span class=\"muted\"> / " + p.bugs.S2 + "</span></td>" +
       "<td class=\"r\"><span class=\"big\">" + (p.tp_items ? pct(p.tp_passing / p.tp_items, 0) : "–") + "</span><div class=\"small\">" + p.tp_passing + " of " + p.tp_items + "</div></td>" +
@@ -132,7 +125,27 @@
       "</tr>";
   });
   $("portfolio").innerHTML = h + "</tbody>";
+  // Each project's run waveform: pass rate per nightly run against its own milestone bar.
+  Array.prototype.forEach.call(document.querySelectorAll("[data-wave]"), function (f) {
+    var p = D.projects[+f.getAttribute("data-wave")];
+    Viz.wave(f, { name: p.name, rates: p.rates, runs: p.runs || [], dates: p.dates || [], need: p.need, compact: true });
+  });
   renderOwners();
+
+  /* Quick search: projects and their pages, and owners. */
+  Quick.setup(function () {
+    var items = [{ kind: "Section", rank: 0, label: "Projects", sub: "Jump to section", go: function () { $("projects-band").scrollIntoView({ block: "start" }); } }];
+    if ((D.owners || []).length) items.push({ kind: "Section", rank: 0, label: "Owners", sub: "Jump to section", go: function () { $("owners-band").scrollIntoView({ block: "start" }); } });
+    D.projects.forEach(function (p) {
+      if (p.error || !p.href) return;
+      items.push({ kind: "Project", rank: 1, label: p.name, sub: "Dashboard · " + (p.milestone || "no milestone"), go: function () { location.href = p.href; } });
+      if (p.regression_href) items.push({ kind: "Regression", rank: 2, label: p.name, sub: "Subsystem, module and instance drill-down", go: function () { location.href = p.regression_href; } });
+    });
+    (D.owners || []).forEach(function (r) {
+      items.push({ kind: "Owner", rank: 3, label: r.owner, sub: r.project + " · " + r.tp_e + " of " + r.ran_e + " passing", go: function () { location.href = r.href; } });
+    });
+    return items;
+  }, $("top-actions"), "Search projects and owners…");
   $("footer").textContent = "Generated " + D.generated + " by socdash.py build-all. Each project's data and config.json live in its own folder.";
 })();
 </script>

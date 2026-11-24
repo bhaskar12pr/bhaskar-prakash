@@ -6,10 +6,7 @@
 /*__CSS__*/
 /* Regression drill-down: pick a node in the subsystem > module > instance tree and a run to view;
    every panel follows both. The week picker drives the weekly digest and owner progress. */
-.wave { margin: 0; display: grid; gap: 2px; width: min(340px, 100%); }
-.wave figcaption { display: flex; justify-content: space-between; gap: 10px; font-size: .74rem; color: var(--muted); }
-.wave figcaption .mono { color: var(--ink); }
-.wave svg { display: block; width: 100%; height: auto; }
+
 .controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; padding: 10px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
 .controls label { display: flex; align-items: center; gap: 8px; font-size: .85rem; color: var(--muted); flex-wrap: wrap; }
 .controls select { font: 500 .85rem var(--font-mono); padding: 5px 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--ink); max-width: 100%; }
@@ -20,24 +17,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .jump-links { display: flex; flex-wrap: wrap; gap: 2px 4px; }
 .jump-links a { font-size: .82rem; color: var(--muted); text-decoration: none; padding: 4px 8px; border-radius: 4px; min-height: 24px; }
 .jump-links a:hover { color: var(--accent); background: var(--accent-soft); }
-.pal-open { font: 500 .82rem var(--font-body); color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 3px 6px 3px 10px; min-height: 28px; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; margin-left: 6px; }
-.pal-open:hover { border-color: var(--accent); }
-kbd { font: 500 .72rem var(--font-mono); color: var(--muted); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 3px; padding: 0 4px; background: var(--bg); }
-#palette { width: min(640px, calc(100vw - 32px)); max-height: min(560px, calc(100vh - 80px)); margin: 10vh auto auto; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); box-shadow: 0 18px 48px rgb(0 0 0 / .28); overflow: hidden; }
-#palette[open] { display: flex; flex-direction: column; }
-#palette::backdrop { background: rgb(10 16 22 / .45); }
-#pal-input { font: 1rem var(--font-body); padding: 14px 16px; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--ink); outline: none; }
-#pal-input:focus-visible { box-shadow: inset 0 -2px 0 var(--accent); }
-#pal-list { list-style: none; margin: 0; padding: 6px; overflow-y: auto; flex: 1; }
-#pal-list li[role="option"] { display: grid; grid-template-columns: 84px minmax(0, auto) minmax(0, 1fr); gap: 10px; align-items: baseline; padding: 8px 10px; border-radius: 5px; cursor: pointer; min-height: 36px; }
-#pal-list li[aria-selected="true"] { background: var(--accent-soft); }
-.pal-kind { font-size: .7rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
-.pal-label { font: 500 .9rem var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pal-sub { font-size: .8rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pal-empty { margin: 0; padding: 0 16px; color: var(--muted); }
-.pal-empty:not(:empty) { padding: 14px 16px; }
-.pal-hint { margin: 0; padding: 8px 16px; border-top: 1px solid var(--line); font-size: .76rem; color: var(--muted); }
-@media (max-width: 560px) { #pal-list li[role="option"] { grid-template-columns: 1fr; gap: 2px; } }
+
 section.band { scroll-margin-top: 64px; }
 .crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; font-size: .9rem; }
 .crumbs button { font: 500 .88rem var(--font-mono); background: none; border: 0; padding: 2px 4px; color: var(--accent); cursor: pointer; border-radius: 3px; }
@@ -144,7 +124,7 @@ section.band { scroll-margin-top: 64px; }
 
   <nav class="jump" aria-label="Sections on this page">
     <div class="crumbs" id="crumbs"></div>
-    <div class="jump-links"><a href="#sec-tree">Hierarchy</a><a href="#sec-week">This week</a><a href="#sec-progress">Progress</a><a href="#sec-failures">Failures</a><a href="#owners-band" id="jump-owners">Owners</a><a href="#tests-band">Tests</a><button type="button" class="pal-open" id="pal-open" aria-keyshortcuts="Control+K Meta+K /" aria-haspopup="dialog">Search <kbd>Ctrl K</kbd></button></div>
+    <div class="jump-links"><a href="#sec-tree">Hierarchy</a><a href="#sec-week">This week</a><a href="#sec-progress">Progress</a><a href="#sec-failures">Failures</a><a href="#owners-band" id="jump-owners">Owners</a><a href="#tests-band">Tests</a></div>
   </nav>
 
   <div class="kpis" id="kpis"></div>
@@ -231,13 +211,6 @@ section.band { scroll-margin-top: 64px; }
   </section>
 
   <footer id="footer"></footer>
-  <dialog id="palette" aria-labelledby="pal-title">
-    <h2 id="pal-title" class="sr-only">Go to a part of the design, a test or an owner</h2>
-    <input id="pal-input" type="text" role="combobox" aria-expanded="true" aria-controls="pal-list" aria-autocomplete="list" autocomplete="off" spellcheck="false" placeholder="Search subsystems, modules, instances, tests, owners…" aria-label="Search">
-    <ul id="pal-list" role="listbox" aria-label="Results"></ul>
-    <p id="pal-empty" class="pal-empty" aria-live="polite"></p>
-    <p class="pal-hint">↑ ↓ to move · Enter to open · Esc to close</p>
-  </dialog>
 </main>
 
 <script type="application/json" id="socdash-data">__SOCDASH_DATA__</script>
@@ -363,43 +336,10 @@ section.band { scroll-margin-top: 64px; }
      A logic-analyzer style trace of every nightly run for the selected part of the design:
      high when the run met the milestone bar, low when it fell short, a gap where nothing ran. */
   function renderWave() {
-    // Sample-and-hold trace, like a logic analyzer's analog channel: each run holds its pass
-    // rate until the next clock tick. The dashed line is the milestone threshold.
-    var n = byId[sel], Wd = 340, H = 70, Lm = 8, R = 30, T = 16, B = 16, s = svg(Wd, H, "");
-    var rates = n.total.map(function (_, i) { return rate(n, i); });
-    var ran = rates.filter(function (r) { return r != null; });
-    var met = ran.filter(function (r) { return r >= need(); }).length;
-    var lo = Math.max(0, Math.floor((Math.min.apply(null, ran.concat([need()])) - 0.03) * 20) / 20), hi = 1;
-    function y(v) { return T + (hi - v) / (hi - lo) * (H - T - B); }
-    var cw = (Wd - Lm - R) / N;
-    function x(i) { return Lm + cw * i; }
-    s.setAttribute("aria-label", "Pass rate per run for " + n.name + ", " + (ran.length ? "from " + pct(ran[0]) + " to " + pct(ran[ran.length - 1]) : "no runs") + "; " + met + " of " + ran.length + " runs at or above " + pct(need(), 0));
-    for (var i = 0; i < N; i++) el(s, "line", { x1: x(i), x2: x(i), y1: 4, y2: i === V ? 12 : 9, stroke: i === V ? "var(--accent)" : "var(--line)", "stroke-width": i === V ? 2 : 1 });
-    var d = "", area = "", prev = null;
-    rates.forEach(function (r, i) {
-      if (r == null) { prev = null; return; }
-      var yy = y(r).toFixed(1);
-      d += (prev === null ? "M" + x(i) + "," + yy : "V" + yy) + "H" + (x(i) + cw);
-      area += "M" + x(i) + "," + yy + "H" + (x(i) + cw) + "V" + y(lo) + "H" + x(i) + "Z";
-      prev = r;
-    });
-    el(s, "path", { d: area, fill: "var(--accent)", "fill-opacity": 0.12 });
-    el(s, "line", { x1: Lm, x2: Wd - R, y1: y(need()), y2: y(need()), stroke: "var(--ink)", "stroke-dasharray": "3 3" });
-    el(s, "text", { x: Wd - R + 4, y: y(need()) + 4, style: "fill:var(--ink)" }, Math.round(need() * 100) + "%");
-    el(s, "path", { d: d, fill: "none", stroke: "var(--accent)", "stroke-width": 2, "stroke-linejoin": "miter", "data-line": "1" });
-    if (rates[V] != null) Viz.dot(s, x(V) + cw / 2, y(rates[V]), "var(--accent)", 4);
-    el(s, "text", { x: Lm, y: H - 3 }, D.runs[0].date.slice(5));
-    el(s, "text", { x: Wd - R, y: H - 3, "text-anchor": "end" }, D.runs[L].date.slice(5));
-    Viz.crosshair(s, rates.map(function (r, i) { return r == null ? null : x(i) + cw / 2; }), T, H - B, Lm, Wd - R, function (i) {
-      return { title: D.runs[i].run + " · " + D.runs[i].date, rows: [{ value: pct(rates[i]), label: rates[i] >= need() ? "at or above the bar" : (100 * (need() - rates[i])).toFixed(1) + " pts below the bar", color: "var(--accent)" }] };
-    });
-    var box = $("wave"); box.innerHTML = "";
-    var cap = document.createElement("figcaption");
-    var name = document.createElement("span"); name.className = "mono"; name.textContent = "sim_pass[" + n.name + "]";
-    var count = document.createElement("span"); count.textContent = met + "/" + ran.length + " runs ≥ " + pct(need(), 0);
-    cap.appendChild(name); cap.appendChild(count);
-    box.appendChild(cap); box.appendChild(s);
-    Motion.drawLines(box);
+    var n = byId[sel];
+    Viz.wave($("wave"), { name: n.name, rates: n.total.map(function (_, i) { return rate(n, i); }),
+      runs: D.runs.map(function (r) { return r.run; }), dates: D.runs.map(function (r) { return r.date; }), need: need(), mark: V });
+    Motion.drawLines($("wave"));
   }
 
   /* ---------- KPIs ---------- */
@@ -818,98 +758,32 @@ section.band { scroll-margin-top: 64px; }
     if (t.id === "collapse-all") { expanded = { all: true }; renderTree(); return; }
   });
   $("search").addEventListener("input", function (e) { query = e.target.value.trim(); limit = 40; renderTests(); });
-  /* ---------- quick search (Ctrl+K, Cmd+K or /) ----------
-     Built only with createElement + textContent: names come from CSV files and are never
-     parsed as HTML. No network access; everything searched is already on the page. */
-  var Palette = (function () {
-    var dlg = $("palette"), input = $("pal-input"), list = $("pal-list"), items = null, shown = [], active = 0;
-    var KIND = { subsystem: "Subsystem", module: "Module", instance: "Instance", project: "Project", test: "Test", owner: "Owner", section: "Section" };
-    var RANK = { section: 0, project: 1, subsystem: 2, module: 3, instance: 4, owner: 5, test: 6 };
-    function jump(id) { var e = $(id); if (e) e.scrollIntoView({ block: "start" }); }
-    function build() {
-      items = [];
-      [["sec-tree", "Hierarchy"], ["sec-week", "This week"], ["sec-progress", "Progress and forecast"], ["sec-failures", "Failures"], ["owners-band", "Owners"], ["tests-band", "Tests"]].forEach(function (s) {
-        if (s[0] === "owners-band" && !O) return;
-        items.push({ kind: "section", label: s[1], sub: "Jump to section", go: function () { jump(s[0]); } });
-      });
-      D.nodes.forEach(function (n) {
-        if (n.level === "instance") { var parent = byId[n.path.slice(0, 2).map(slug).join("--")]; if (parent && kids(parent).indexOf(n.id) < 0) return; }
-        items.push({ kind: n.level, label: n.name, sub: n.path.length > 1 ? n.path.slice(0, -1).join(" › ") : D.project,
-          go: function () { select(n.id); jump("sec-tree"); } });
-      });
-      if (O) O.list.forEach(function (o) {
-        items.push({ kind: "owner", label: o.owner, sub: o.scopes.join(", ") || "owner", go: function () {
-          ownerFilter = o.owner; filter = "all"; query = ""; $("search").value = ""; select("all"); jump("tests-band"); } });
-      });
-      D.tests.forEach(function (t) {
-        items.push({ kind: "test", label: t.test, sub: t.ss + " › " + t.mod + (t.inst !== t.mod ? " › " + t.inst : ""), go: function () {
-          ownerFilter = null; filter = "all"; query = t.test; $("search").value = t.test; select(t.n); jump("tests-band"); } });
-      });
-    }
-    function search(q) {
-      var words = q.toLowerCase().split(/\s+/).filter(Boolean);
-      var out = items.filter(function (it) {
-        var hay = (it.label + " " + it.sub + " " + it.kind).toLowerCase();
-        return words.every(function (w) { return hay.indexOf(w) >= 0; });
-      });
-      var first = words[0] || "";
-      out.sort(function (a, b) {
-        var la = a.label.toLowerCase(), lb = b.label.toLowerCase();
-        var sa = la === first ? 0 : la.indexOf(first) === 0 ? 1 : la.indexOf(first) >= 0 ? 2 : 3;
-        var sb = lb === first ? 0 : lb.indexOf(first) === 0 ? 1 : lb.indexOf(first) >= 0 ? 2 : 3;
-        return sa - sb || RANK[a.kind] - RANK[b.kind] || (la < lb ? -1 : la > lb ? 1 : 0);
-      });
-      return out.slice(0, 50);
-    }
-    function render() {
-      shown = search(input.value.trim());
-      active = Math.min(active, Math.max(0, shown.length - 1));
-      list.textContent = "";
-      list.hidden = !shown.length;
-      $("pal-empty").textContent = shown.length ? "" : "Nothing matches. Try a module, instance, test or owner name.";
-      if (!shown.length) { input.removeAttribute("aria-activedescendant"); return; }
-      shown.forEach(function (it, i) {
-        var li = document.createElement("li");
-        li.id = "pal-opt-" + i; li.setAttribute("role", "option"); li.setAttribute("aria-selected", String(i === active));
-        var k = document.createElement("span"); k.className = "pal-kind"; k.textContent = KIND[it.kind] || it.kind;
-        var l = document.createElement("span"); l.className = "pal-label"; l.textContent = it.label;
-        var s = document.createElement("span"); s.className = "pal-sub"; s.textContent = it.sub;
-        li.appendChild(k); li.appendChild(l); li.appendChild(s);
-        li.addEventListener("click", function () { choose(i); });
-        li.addEventListener("pointermove", function () { if (active !== i) { active = i; mark(); } });
-        list.appendChild(li);
-      });
-      mark();
-    }
-    function mark() {
-      Array.prototype.forEach.call(list.children, function (li, i) { if (li.getAttribute("role") === "option") li.setAttribute("aria-selected", String(i === active)); });
-      if (shown.length) { input.setAttribute("aria-activedescendant", "pal-opt-" + active); var a = $("pal-opt-" + active); if (a) a.scrollIntoView({ block: "nearest" }); }
-    }
-    function choose(i) { var it = shown[i]; if (!it) return; close(); it.go(); }
-    function open() {
-      if (dlg.open) return;
-      if (!items) build();
-      input.value = ""; active = 0; render();
-      if (dlg.showModal) dlg.showModal(); else dlg.setAttribute("open", "");
-      input.focus();
-    }
-    function close() { if (dlg.open) dlg.close(); }
-    input.addEventListener("input", function () { active = 0; render(); });
-    input.addEventListener("keydown", function (e) {
-      if (e.key === "ArrowDown") { e.preventDefault(); active = Math.min(shown.length - 1, active + 1); mark(); }
-      else if (e.key === "ArrowUp") { e.preventDefault(); active = Math.max(0, active - 1); mark(); }
-      else if (e.key === "Enter") { e.preventDefault(); choose(active); }
+  /* ---------- quick search: what this page offers (see Quick in viz.js) ---------- */
+  function jump(id) { var e = $(id); if (e) e.scrollIntoView({ block: "start" }); }
+  Quick.setup(function () {
+    var items = [];
+    [["sec-tree", "Hierarchy"], ["sec-week", "This week"], ["sec-progress", "Progress and forecast"], ["sec-failures", "Failures"], ["owners-band", "Owners"], ["tests-band", "Tests"]].forEach(function (s) {
+      if (s[0] === "owners-band" && !O) return;
+      items.push({ kind: "Section", rank: 0, label: s[1], sub: "Jump to section", go: function () { jump(s[0]); } });
     });
-    dlg.addEventListener("click", function (e) { if (e.target === dlg) close(); });  // click on the backdrop
-    $("pal-open").addEventListener("click", open);
-    if (/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)) $("pal-open").querySelector("kbd").textContent = "⌘ K";
-    document.addEventListener("keydown", function (e) {
-      var typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable;
-      if ((e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "K")) { e.preventDefault(); open(); }
-      else if (e.key === "/" && !typing && !dlg.open) { e.preventDefault(); open(); }
+    var RANK = { project: 1, subsystem: 2, module: 3, instance: 4 };
+    D.nodes.forEach(function (n) {
+      if (n.level === "instance") { var parent = byId[n.path.slice(0, 2).map(slug).join("--")]; if (parent && kids(parent).indexOf(n.id) < 0) return; }
+      items.push({ kind: n.level.charAt(0).toUpperCase() + n.level.slice(1), rank: RANK[n.level], label: n.name, sub: n.path.length > 1 ? n.path.slice(0, -1).join(" › ") : D.project,
+        go: function () { select(n.id); jump("sec-tree"); } });
     });
-    return { open: open, close: close, search: function (q) { if (!items) build(); return search(q); } };
-  })();
+    if (O) O.list.forEach(function (o) {
+      items.push({ kind: "Owner", rank: 5, label: o.owner, sub: o.scopes.join(", ") || "owner", go: function () {
+        ownerFilter = o.owner; filter = "all"; query = ""; $("search").value = ""; select("all"); jump("tests-band"); } });
+    });
+    D.tests.forEach(function (t) {
+      items.push({ kind: "Test", rank: 6, label: t.test, sub: t.ss + " › " + t.mod + (t.inst !== t.mod ? " › " + t.inst : ""), go: function () {
+        ownerFilter = null; filter = "all"; query = t.test; $("search").value = t.test; select(t.n); jump("tests-band"); } });
+    });
+    if (D.links.project) items.push({ kind: "Page", rank: 0, label: D.project + " dashboard", sub: "Open the project dashboard", go: function () { location.href = D.links.project; } });
+    if (D.links.home) items.push({ kind: "Page", rank: 0, label: "All projects", sub: "Open the overview", go: function () { location.href = D.links.home; } });
+    return items;
+  }, document.querySelector(".jump-links"), "Search subsystems, modules, instances, tests, owners…");
 
   window.addEventListener("hashchange", function () { select(location.hash.replace(/^#/, "") || "all"); });
   setRuns();

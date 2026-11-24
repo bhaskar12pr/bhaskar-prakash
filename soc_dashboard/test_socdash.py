@@ -478,8 +478,10 @@ class SafetyTest(unittest.TestCase):
                             f"{path.name} links outside Google Fonts: {links}")
 
     def test_palette_builds_results_as_text(self):
-        text = (HERE / "templates" / "regression.html").read_text()
-        palette = text[text.index("var Palette = (function"):text.index("window.addEventListener(\"hashchange\"")]
+        text = (HERE / "templates" / "viz.js").read_text()
+        palette = text[text.index("var Quick = (function"):]
+        for page in ("overview.html", "project.html", "regression.html"):
+            self.assertIn("Quick.setup(", (HERE / "templates" / page).read_text(), page)
         self.assertNotIn("innerHTML", palette)
         self.assertIn("textContent", palette)
 

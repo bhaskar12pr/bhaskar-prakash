@@ -291,8 +291,10 @@ Animation is used to show what changed, never as decoration, and it is short:
 * **Numbers glide** from their old value to the new one when you change the run, block or
   selection, and the tile that changed flashes once (about half a second).
 * **Chart lines redraw** when the data under them changes.
-* **Run waveform** in the regression header: a logic-analyzer style sample-and-hold trace of
-  the pass rate per nightly run, with the milestone bar as a threshold and a tick for each run.
+* **Run waveform**: a logic-analyzer style sample-and-hold trace of the pass rate per
+  nightly run, with the milestone bar as a threshold. It heads the regression page (following
+  the selected subsystem, module or instance) and the project dashboard (following the block
+  chips), and a compact version sits in each project row on the overview.
 * **Panels slide up into place** as they scroll into view (browsers with scroll-driven
   animation), the quick search pops open, buttons give a small press, and "At risk"
   forecasts pulse twice on load.
@@ -302,8 +304,10 @@ page that never animates is complete. Nothing fades, so text keeps full contrast
 
 ## Quick search
 
-On the regression page press **Ctrl+K** (**⌘K** on a Mac), **/**, or the **Search** button,
-then type part of a subsystem, module, instance, test or owner name. Arrow keys move,
+On every page press **Ctrl+K** (**⌘K** on a Mac), **/**, or the **Search** button, then
+type a name. The overview finds projects, their regression pages and owners; a project
+dashboard finds sections, blocks, open bugs and testplan features; the regression page
+finds subsystems, modules, instances, tests and owners. Arrow keys move,
 Enter opens, Esc closes. Choosing a test filters the test list to it; choosing an owner shows
 their tests; choosing a part of the design selects it in the tree. Everything searched is
 already in the page, so nothing is sent anywhere.

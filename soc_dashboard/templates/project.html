@@ -17,8 +17,12 @@
       <h1 id="title"></h1>
       <div class="meta" id="meta"></div>
     </div>
-    <div class="scope" id="scope" role="group" aria-label="Show block"></div>
+    <div class="top-side">
+      <figure class="wave" id="wave"></figure>
+      <div class="top-actions" id="top-actions"></div>
+    </div>
   </header>
+  <div class="scope" id="scope" role="group" aria-label="Show block"></div>
 
   <div class="kpis" id="kpis"></div>
 
@@ -146,7 +150,7 @@
       function y(v) { return tp + (hi - v) / ((hi - lo) || 1) * (h - tp - bt); }
       el(s, "line", { x1: l, x2: w - r, y1: y(tgt), y2: y(tgt), stroke: "var(--ink)", "stroke-width": 1.5 });
       el(s, "path", { d: "M" + pts.map(function (p, i) { return x(i) + "," + y(p.v); }).join("L") + "L" + x(pts.length - 1) + "," + (h - bt) + "L" + x(0) + "," + (h - bt) + "Z", fill: "var(--accent)", "fill-opacity": 0.12 });
-      el(s, "path", { d: "M" + pts.map(function (p, i) { return x(i) + "," + y(p.v); }).join("L"), fill: "none", stroke: "var(--accent)", "stroke-width": 2 });
+      el(s, "path", { d: "M" + pts.map(function (p, i) { return x(i) + "," + y(p.v); }).join("L"), fill: "none", stroke: "var(--accent)", "stroke-width": 2, "data-line": "1" });
       Viz.dot(s, x(pts.length - 1), y(pts[pts.length - 1].v), "var(--accent)", 4);
       Viz.crosshair(s, pts.map(function (_, i) { return x(i); }), tp, h - bt, l, w - r, function (i) {
         return { title: m + " · " + pts[i].d, rows: [{ value: pts[i].v.toFixed(1) + "%", label: "covered", color: "var(--accent)" }, { value: pts[i].t.toFixed(0) + "%", label: "target" }] };
@@ -451,7 +455,7 @@
     }
     var pts = tr.map(function (p, i) { return [x(i), y(p.unresolved)]; });
     el(s, "path", { d: "M" + pts[0][0] + "," + y(0) + "L" + pts.map(function (p) { return p.join(","); }).join("L") + "L" + pts[pts.length - 1][0] + "," + y(0) + "Z", fill: "var(--accent)", "fill-opacity": "0.1" });
-    el(s, "path", { d: "M" + pts.map(function (p) { return p.join(","); }).join("L"), fill: "none", stroke: "var(--accent)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" });
+    el(s, "path", { d: "M" + pts.map(function (p) { return p.join(","); }).join("L"), fill: "none", stroke: "var(--accent)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round", "data-line": "1" });
     tr.forEach(function (p, i) { if (i % 3 === (tr.length - 1) % 3) el(s, "text", { x: x(i), y: H - 8, "text-anchor": "middle" }, shortDate(p.date)); });
     var lp = pts[pts.length - 1];
     Viz.dot(s, lp[0], lp[1], "var(--accent)", 4.5);
@@ -463,6 +467,7 @@
         { value: String(p.found), label: "found that week" }, { value: String(p.closed), label: "closed that week" }] };
     });
     var bt = $("bugtrend"); bt.innerHTML = ""; bt.appendChild(s);
+    Motion.drawLines(bt);
     Viz.table(bt, "Show weeks as a table", ["Week ending", "Unresolved", "Found", "Closed"],
       tr.slice().reverse().map(function (p) { return [p.date, String(p.unresolved), String(p.found), String(p.closed)]; }));
 
@@ -518,11 +523,19 @@
   function renderAll() {
     renderHeader(); renderKpis(); renderTrend(); renderBlocks(); renderSignatures(); renderIntermittent();
     renderCoverage(); renderBugs(); renderTestplan(); renderSignoff();
-    renderCovTrend(); renderFixSpeed(); renderTpTrend();
+    renderCovTrend(); renderFixSpeed(); renderTpTrend(); renderWave();
+    Motion.drawLines($("covtrend"));
     $("footer").textContent = "Generated " + D.generated + " by socdash.py from " + D.sources.join(", ") + ".";
     $("intermittent-title").textContent = "Intermittent tests, last " + D.window + " runs";
     if (D.regression_href) { $("reg-link").href = D.regression_href + (scope === "all" ? "" : "#" + regNode(scope)); $("reg-link").hidden = false; }
     if (D.home) { $("home").href = D.home; $("home").hidden = false; $("home-sep").hidden = false; }
+  }
+
+  function renderWave() {
+    var t = S().trend;
+    Viz.wave($("wave"), { name: scope === "all" ? D.project : scope, rates: t.map(function (x) { return x.rate; }),
+      runs: t.map(function (x) { return x.run; }), dates: t.map(function (x) { return x.date; }), need: needRate(), mark: t.length - 1 });
+    Motion.drawLines($("wave"));
   }
 
   function setScope(b) {
@@ -538,6 +551,28 @@
     return match || "all";
   }
   window.addEventListener("hashchange", function () { setScope(fromHash()); });
+
+  /* Quick search: sections, blocks, open bugs, testplan features and the linked pages. */
+  function jump(id) { var e = $(id); if (e) e.scrollIntoView({ block: "start" }); }
+  Quick.setup(function () {
+    var items = [];
+    [["regression", "Regression"], ["coverage", "Coverage"], ["bugs", "Bugs"], ["testplan", "Testplan"], ["signoff", "Sign-off"]].forEach(function (s) {
+      items.push({ kind: "Section", rank: 0, label: s[1], sub: "Jump to section", go: function () { jump(s[0]); } });
+    });
+    items.push({ kind: "Block", rank: 1, label: "All blocks", sub: "Show the whole SoC", go: function () { setScope("all"); } });
+    D.blockList.forEach(function (b) { items.push({ kind: "Block", rank: 1, label: b, sub: "Narrow every section to this block", go: function () { setScope(b); } }); });
+    D.bugList.forEach(function (g) {
+      if (g.status === "closed") return;
+      items.push({ kind: "Bug", rank: 2, label: g.id + " " + g.title, sub: g.severity + " · " + g.block + " · " + g.status, go: function () { setScope(g.block); jump("bugs"); } });
+    });
+    D.scopes.all.testplan.features.forEach(function (f) {
+      items.push({ kind: "Feature", rank: 3, label: f.feature, sub: f.block + " · " + f.passing + " of " + (f.planned + f.written + f.passing) + " passing", go: function () { setScope(f.block); jump("testplan"); } });
+    });
+    if (D.regression_href) items.push({ kind: "Page", rank: 0, label: "Regression drill-down", sub: "Subsystems, modules, instances and tests", go: function () { location.href = D.regression_href; } });
+    if (D.home) items.push({ kind: "Page", rank: 0, label: "All projects", sub: "Open the overview", go: function () { location.href = D.home; } });
+    return items;
+  }, $("top-actions"), "Search sections, blocks, bugs, features…");
+
   scope = fromHash();
   renderAll();
 })();
