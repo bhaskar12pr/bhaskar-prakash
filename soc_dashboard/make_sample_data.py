@@ -442,6 +442,22 @@ def worklog_rows(spec, rng):
     return rows
 
 
+def activity_rows(spec, rng):
+    """Ten weeks of per-person activity: tests and assertions added, bugs found, failures
+    debugged and merge requests merged."""
+    people = sorted({o for o, _ in spec["owners"]})
+    rows = []
+    for i, person in enumerate(people):
+        pace = 0.75 + 0.1 * (i % 4)  # people work at different, steady paces
+        for w in range(9, -1, -1):
+            end = AS_OF - dt.timedelta(days=7 * w)
+            wave = 1 + 0.25 * ((w + i) % 3 - 1)
+            rows.append([end, person,
+                         round(rng.uniform(6, 13) * pace * wave), round(rng.uniform(3, 11) * pace * wave),
+                         rng.randint(1, 5), round(rng.uniform(10, 20) * pace), rng.randint(2, 7)])
+    return rows
+
+
 def write_project(spec):
     rng = random.Random(spec["seed"])
     out = ROOT / spec["folder"]
@@ -473,6 +489,9 @@ def write_project(spec):
         write_csv(out / "gates.csv", ["block", "gate", "status", "date", "note"], gate_rows(spec))
     if spec.get("triage"):
         write_csv(out / "triage.csv", ["id", "block", "signature", "failed_at", "triaged_at"], triage_rows(spec, rng))
+    if spec.get("owners") and spec.get("worklog"):
+        write_csv(out / "engineer_activity.csv", ["week_end", "owner", "tests_added", "assertions_added",
+                                                  "bugs_found", "fails_debugged", "mrs_merged"], activity_rows(spec, rng))
     if spec.get("worklog") and spec.get("owners"):
         write_csv(out / "worklog.csv", ["week_end", "owner", "kind", "label", "hours"], worklog_rows(spec, rng))
     print(f"Wrote {out}")

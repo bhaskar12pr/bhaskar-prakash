@@ -31,9 +31,13 @@ TEMPLATES = HERE / "templates"
 DEFAULT_FILES = {"regression": "regression_runs.csv", "coverage": "coverage.csv",
                  "bugs": "bugs.csv", "testplan": "testplan.csv", "owners": "owners.csv",
                  "testplan_history": "testplan_history.csv", "owner_targets": "owner_targets.csv",
-                 "gates": "gates.csv", "triage": "triage.csv", "worklog": "worklog.csv"}
+                 "gates": "gates.csv", "triage": "triage.csv", "worklog": "worklog.csv",
+                 "activity": "engineer_activity.csv"}
 # A project without one of these files simply goes without the views that need it.
-OPTIONAL_FILES = {"owners", "testplan_history", "owner_targets", "gates", "triage", "worklog"}
+OPTIONAL_FILES = {"owners", "testplan_history", "owner_targets", "gates", "triage", "worklog", "activity"}
+ACTIVITY_COLS = ("week_end", "owner")
+# Per-person weekly counts in engineer_activity.csv; any column may be left out.
+ACTIVITY_METRICS = ("tests_added", "assertions_added", "bugs_found", "fails_debugged", "mrs_merged")
 GATE_COLS = ("block", "gate")
 GATE_STATES = ("done", "in_progress", "at_risk", "not_started")
 TRIAGE_COLS = ("id", "block", "failed_at", "triaged_at")
@@ -58,7 +62,7 @@ UNASSIGNED = "(unassigned)"
 # Tunable settings a project may override under "settings" in config.json.
 DEFAULT_SETTINGS = {"intermittent_window": 7, "bug_trend_weeks": 10, "stale_after_days": 3,
                     "test_history_runs": 10, "weeks": 6, "forecast_runs": 10, "stuck_days": 7,
-                    "gate_risk_days": 7, "overload_factor": 1.5}
+                    "gate_risk_days": 7, "overload_factor": 1.5, "scorecard_weeks": 4, "sparkline_weeks": 8}
 UNGROUPED = "(no subsystem)"
 
 STATUSES = ("PASS", "FAIL", "TIMEOUT", "ERROR")
@@ -255,10 +259,21 @@ def load(data_dir: Path) -> dict:
                             "kind": _choice(r, "kind", WORK_KINDS), "hours": _num(r["hours"], r["_where"]),
                             "label": r.get("label", "") or ("planned work" if r["kind"].lower() == "planned" else "unplanned work")})
 
+    activity = []
+    if optional("activity"):
+        names = {o["owner"] for o in owners}
+        for r in read_csv(files["activity"], ACTIVITY_COLS):
+            if names and r["owner"] not in names:
+                raise InputError(f"{r['_where']}: owner '{r['owner']}' is not in owners.csv")
+            row = {"week_end": _date(r["week_end"], r["_where"]), "owner": r["owner"]}
+            for m in ACTIVITY_METRICS:
+                row[m] = _num(r[m], r["_where"], int) if r.get(m) else 0
+            activity.append(row)
+
     return {"config": config, "dir": data_dir, "runs": runs, "coverage": coverage,
             "coverage_history": coverage_history, "bugs": bugs, "testplan": testplan,
             "testplan_history": testplan_history, "owners": owners, "owner_targets": owner_targets,
-            "gates": gates, "triage": triage, "worklog": worklog}
+            "gates": gates, "triage": triage, "worklog": worklog, "activity": activity}
 
 
 def _datetime(value: str, where: str) -> dt.datetime:
@@ -1228,11 +1243,61 @@ def worklog_stats(rows: list, weeks: int) -> dict | None:
             "people": len({r["owner"] for r in rows if r["week_end"] == latest})}
 
 
+def scorecards(data: dict, gates: dict, load: dict | None, as_of: dt.date) -> list | None:
+    """One card per person: readiness of the blocks they own, their own activity over the last
+    `scorecard_weeks` compared with the weeks before, open bugs, and tests plus assertions added
+    per week over `sparkline_weeks`. Listed by name; each person is compared with themselves.
+    """
+    if not data.get("owners"):
+        return None
+    cfg = data["config"]
+    span, spark = cfg["settings"]["scorecard_weeks"], cfg["settings"]["sparkline_weeks"]
+    owner_of = owner_lookup(data["owners"])
+    block_ss = {}
+    for r in data["runs"]:
+        block_ss.setdefault(r["block"], hierarchy_path(r, cfg["block_subsystem"])[0])
+    readiness = {row["block"]: row["done"] / len(row["cells"]) for row in gates["rows"] if row["cells"]}
+    scopes = defaultdict(list)
+    for o in data["owners"]:
+        scopes[o["owner"]].append(o["scope"])
+    blocks_of = defaultdict(set)
+    for block in readiness:
+        blocks_of[owner_of(block_ss.get(block, cfg["block_subsystem"].get(block, UNGROUPED)), block)].add(block)
+    for o in data["owners"]:  # an instance owner works on that module too (a single test does not count)
+        mod = o["scope"].split("/")[0]
+        if o["scope"].count("/") == 1 and mod in readiness:
+            blocks_of[o["owner"]].add(mod)
+    open_bugs = {p["owner"]: p["bugs"] for p in (load or {}).get("people", [])}
+    recent_from = as_of - dt.timedelta(days=7 * span)
+    prior_from = as_of - dt.timedelta(days=14 * span)
+    spark_ends = [as_of - dt.timedelta(days=7 * w) for w in range(spark - 1, -1, -1)]
+    cards = []
+    for name in sorted(scopes, key=str.lower):
+        rows = [a for a in data.get("activity", []) if a["owner"] == name]
+        recent = {m: sum(a[m] for a in rows if recent_from < a["week_end"] <= as_of) for m in ACTIVITY_METRICS}
+        prior = {m: sum(a[m] for a in rows if prior_from < a["week_end"] <= recent_from) for m in ACTIVITY_METRICS}
+        weekly = []
+        for end in spark_ends:
+            start = end - dt.timedelta(days=7)
+            weekly.append(sum(a["tests_added"] + a["assertions_added"] for a in rows if start < a["week_end"] <= end))
+        blocks = sorted(blocks_of.get(name, ()))
+        cards.append({
+            "owner": name, "scopes": sorted(scopes[name]), "blocks": blocks,
+            "readiness": (sum(readiness[b] for b in blocks) / len(blocks)) if blocks else None,
+            "recent": recent, "prior": prior if any(prior.values()) else None,
+            "open_bugs": open_bugs.get(name, 0), "has_activity": bool(rows),
+            "spark": weekly, "spark_ends": [e.isoformat() for e in spark_ends],
+        })
+    return cards
+
+
 def build_payload(data: dict, home: str | None = None) -> dict:
     order = run_order(data["runs"])
     data["as_of"] = dt.date.fromisoformat(data["config"]["as_of"]) if data["config"].get("as_of") else order[-1][1]
     blocks = sorted({r["block"] for k in ("runs", "coverage", "bugs", "testplan") for r in data[k]})
     cfg = data["config"]
+    gates = gate_matrix(data, data["as_of"])
+    load = workload(data)
     return {
         "project": cfg.get("project", "SoC"),
         "as_of": data["as_of"].isoformat(),
@@ -1252,8 +1317,10 @@ def build_payload(data: dict, home: str | None = None) -> dict:
         "home": home,
         "regression_href": None,
         "need": current_milestone(cfg)["need"],
-        "gates": gate_matrix(data, data["as_of"]),
-        "team": {"workload": workload(data),
+        "gates": gates,
+        "scorecard_weeks": cfg["settings"]["scorecard_weeks"],
+        "team": {"workload": load,
+                 "scorecards": scorecards(data, gates, load, data["as_of"]),
                  "triage": triage_stats(data["triage"], data["as_of"], cfg["settings"]["weeks"]),
                  "worklog": worklog_stats(data["worklog"], cfg["settings"]["weeks"])},
         # block -> its module node on the regression page, so block links land in the right place

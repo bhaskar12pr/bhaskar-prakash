@@ -49,13 +49,17 @@ def main(out: Path) -> None:
         return r
     rewrite(proj / "regression_runs.csv", runs)
     rewrite(proj / "owners.csv", lambda r: {**r, "owner": OWNER if r["owner"] == "Dana" else r["owner"]})
-    rewrite(proj / "owner_targets.csv", lambda r: {**r, "owner": OWNER if r["owner"] == "Dana" else r["owner"]})
+    for name in ("owner_targets.csv", "engineer_activity.csv", "worklog.csv"):  # every file that names owners
+        if (proj / name).exists():
+            rewrite(proj / name, lambda r: {**r, "owner": OWNER if r["owner"] == "Dana" else r["owner"]})
     cfg = json.loads((proj / "config.json").read_text())
     cfg["project"] = PROJECT
     (proj / "config.json").write_text(json.dumps(cfg, indent=2))
 
     code = socdash.build_all(out / "projects", out / "site", "Hostile check")
     print(f"built {out / 'site'} (build exit {code})")
+    if code == 1:  # a broken input means the hostile pages were not built, so nothing was proven
+        sys.exit("hostile project failed to build; the safety check would not cover it")
 
 
 if __name__ == "__main__":

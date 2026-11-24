@@ -312,3 +312,20 @@ kbd { font: 500 .72rem var(--font-mono); color: var(--muted); border: 1px solid 
 .waitlist .sig { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stat-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; }
 .stat-line b { font: 600 1.6rem/1 var(--font-display); }
+
+/* Engineer scorecards */
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 225px), 1fr)); gap: 12px; }
+.card { border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; display: grid; gap: 10px; align-content: start; background: var(--surface); }
+.card-head { display: flex; justify-content: space-between; gap: 10px; align-items: start; }
+.card-head h4 { margin: 0; font: 600 1rem var(--font-body); }
+.card-head p { margin: 2px 0 0; font-size: .78rem; color: var(--muted); font-family: var(--font-mono); }
+.ready { text-align: right; display: grid; justify-items: end; }
+.ready b { font: 600 1.7rem/1 var(--font-display); }
+.ready small { font-size: .7rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.ready.low b { color: var(--fail-ink); } .ready.mid b { color: var(--warn-ink); } .ready.high b { color: var(--pass-ink); }
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 8px; margin: 0; }
+.stats div { display: grid; gap: 1px; }
+.stats dt { order: 2; font-size: .74rem; color: var(--muted); }
+.stats dd { order: 1; margin: 0; font: 600 1.15rem/1.1 var(--font-body); }
+.stats .dl { order: 3; font-size: .68rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.card svg { display: block; width: 100%; height: auto; }

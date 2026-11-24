@@ -551,6 +551,37 @@ class GatesAndTeamTest(unittest.TestCase):
             self.assertIn("unknown auto 'magic'", str(ctx.exception))
 
 
+class ScorecardTest(unittest.TestCase):
+    def test_scorecards_compare_people_with_themselves(self):
+        cards = socdash.build_payload(socdash.load(ORION))["team"]["scorecards"]
+        self.assertEqual([c["owner"] for c in cards], sorted(c["owner"] for c in cards))  # name order
+        asha = next(c for c in cards if c["owner"] == "Asha")
+        self.assertNotIn("pcie_ctrl", asha["blocks"])  # owning one test there does not make the block hers
+        self.assertEqual(len(asha["spark"]), 8)
+        self.assertIsNotNone(asha["prior"])
+        for c in cards:
+            self.assertTrue(c["readiness"] is None or 0 <= c["readiness"] <= 1)
+
+    def test_readiness_is_average_gate_completion_of_owned_blocks(self):
+        cfg = {"project": "P", "settings": dict(socdash.DEFAULT_SETTINGS), "block_subsystem": {}}
+        gates = {"rows": [{"block": "a", "done": 7, "cells": [0] * 7}, {"block": "b", "done": 0, "cells": [0] * 7}]}
+        data = {"config": cfg, "owners": [{"owner": "Ann", "scope": "a"}, {"owner": "Ann", "scope": "b"}],
+                "runs": [], "activity": [{"week_end": D(2026, 11, 14), "owner": "Ann", "tests_added": 3,
+                                          "assertions_added": 2, "bugs_found": 1, "fails_debugged": 4, "mrs_merged": 1}]}
+        card = socdash.scorecards(data, gates, None, D(2026, 11, 14))[0]
+        self.assertEqual((card["readiness"], card["recent"]["tests_added"], card["spark"][-1]), (0.5, 3, 5))
+        self.assertIsNone(card["prior"])
+
+    def test_activity_owner_must_be_known(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proj = Path(tmp, "p")
+            shutil.copytree(ORION, proj)
+            (proj / "engineer_activity.csv").write_text("week_end,owner,tests_added\n2026-11-21,Zed,3\n")
+            with self.assertRaises(socdash.InputError) as ctx:
+                socdash.load(proj)
+            self.assertIn("owner 'Zed' is not in owners.csv", str(ctx.exception))
+
+
 class SafetyTest(unittest.TestCase):
     """Static guarantees about the generated pages. checks/browser_safety_check.js proves the
     same things in a real browser, including that hostile names never run."""

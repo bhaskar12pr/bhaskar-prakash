@@ -50,6 +50,8 @@ async function openPage(browser, dir, file) {
   const [sampleDir, hostileDir] = process.argv.slice(2).map((d) => path.resolve(d));
   if (!sampleDir || !hostileDir) { console.error('usage: node browser_safety_check.js SAMPLE_SITE HOSTILE_SITE'); process.exit(2); }
   const browser = await chromium.launch();
+  // The hostile site must contain a built project, or the injection checks below prove nothing.
+  check(fs.readdirSync(hostileDir).some((f) => f.endsWith('-regression.html')), 'hostile project was built');
 
   for (const dir of [sampleDir, hostileDir]) {
     const pages = fs.readdirSync(dir).filter((f) => f.endsWith('.html'));

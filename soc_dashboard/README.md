@@ -22,7 +22,7 @@ stand, how fast they are moving, and whether they will be done in time.
 | Bugs        | Unresolved bugs by severity, weekly trend, the open list with age, and **time to fix** per severity (median, 90th percentile, oldest open) |
 | Testplan    | **Items by status at the end of each week**, and planned / written / passing per feature |
 | Milestone gates | Every block against 7 gates (TB bring-up, first test passes, all features tested, code coverage ≥ 90%, functional coverage ≥ 95%, no open critical bugs, DV sign-off): done, in progress, at risk or not started, with the date passed or the due date |
-| Team health | Open work per person against the team average with an overload flag, triage turnaround (failure to root cause), and planned vs unplanned team hours |
+| Team health | Engineer scorecards (readiness of owned blocks, tests, assertions, bugs found, failures debugged, MRs merged, open bugs, 8-week trend), open work per person against the team average with an overload flag, triage turnaround, and planned vs unplanned team hours |
 | Sign-off    | Each milestone's criteria evaluated as met or not |
 
 Every section can be narrowed to one block with the chips at the top or the block table.
@@ -104,7 +104,8 @@ python3 socdash.py build --data projects/orion_soc --out orion.html
 ## Project files
 
 Each project folder holds the files below. `owners.csv`, `owner_targets.csv`,
-`testplan_history.csv`, `gates.csv`, `triage.csv` and `worklog.csv` are optional; without
+`testplan_history.csv`, `gates.csv`, `triage.csv`, `worklog.csv` and
+`engineer_activity.csv` are optional; without
 them the views that need them are hidden (gates still show what the data can decide).
 
 ### `regression_runs.csv` — one row per simulation
@@ -255,6 +256,26 @@ Hours per person per week, `kind` `planned` or `unplanned` (for example from Jir
 Shown only as team totals: planned vs unplanned hours per week and where the unplanned time
 went.
 
+### `engineer_activity.csv` (optional)
+
+```csv
+week_end,owner,tests_added,assertions_added,bugs_found,fails_debugged,mrs_merged
+2026-11-21,Asha,8,5,3,14,4
+```
+
+Per person per week; any count column may be left out. It drives the **engineer
+scorecards** in Team health, one card per person in name order:
+
+* **Readiness**: the average share of milestone gates passed across the blocks the person
+  owns (a module or instance scope in `owners.csv`; owning a single test does not count).
+* Tests, assertions, bugs found, failures debugged and MRs merged over the last
+  `scorecard_weeks` (default 4), each with the change against **the same person's** previous
+  4 weeks, and open bugs now.
+* A line of tests plus assertions added per week over `sparkline_weeks` (default 8).
+
+The cards are there to see each person's own trend and to support them, not to rank people
+against each other.
+
 ### Workload
 
 Derived from data you already have, so it needs no file: per person, testplan items not
@@ -306,6 +327,8 @@ milestones, criteria, file names and settings.
 | `settings.forecast_runs` | recent runs the forecast line is fitted to | 10 |
 | `settings.stuck_days` | a test failing this many days or more counts as stuck | 7 |
 | `settings.gate_risk_days` | a gate not done and due within this many days (or overdue) is at risk | 7 |
+| `settings.scorecard_weeks` | weeks summed on each engineer scorecard | 4 |
+| `settings.sparkline_weeks` | weeks in each scorecard's line | 8 |
 | `settings.overload_factor` | flag a person whose open work is this many times the team average | 1.5 |
 | `gates` | the milestone gates and their order | the 7 gates above |
 | `subsystems` | group blocks into subsystems when the regression CSV has no `subsystem` column | none |

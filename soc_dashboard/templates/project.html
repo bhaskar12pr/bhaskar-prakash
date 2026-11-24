@@ -117,6 +117,11 @@
   <section class="band" id="team" hidden>
     <div class="band-head"><h2>Team health</h2><p>For spotting overload and friction and planning cover, not for comparing people's output. Triage and work mix are team totals.</p></div>
     <div class="grid">
+      <div class="panel span-12" id="sc-panel">
+        <div class="panel-head"><h3 id="sc-title">Engineer scorecards · last 4 weeks</h3></div>
+        <p class="muted" style="margin:0;font-size:.82rem" id="sc-note"></p>
+        <div class="cards" id="scorecards"></div>
+      </div>
       <div class="panel span-6" id="wl-panel">
         <div class="panel-head"><h3>Open work per person</h3>
           <span class="legend"><span><i style="background:var(--cat1)"></i>testplan items</span><span><i style="background:var(--cat2)"></i>open bugs</span><span><i style="background:var(--cat3)"></i>failing tests</span><span><i class="dash" style="color:var(--ink);transform:rotate(90deg);width:10px"></i>team average</span></span></div>
@@ -602,14 +607,75 @@
     return el(parent, "path", { d: d, fill: fill });
   }
   function renderTeam() {
-    var T = D.team || {}, any = T.workload || T.triage || T.worklog;
+    var T = D.team || {}, any = T.workload || T.triage || T.worklog || T.scorecards;
     $("team").hidden = !any;
     if (!any) return;
+    $("sc-panel").hidden = !T.scorecards;
+    if (T.scorecards) renderScorecards(T.scorecards);
     $("wl-panel").hidden = !T.workload; $("tri-panel").hidden = !T.triage; $("work-panel").hidden = !T.worklog;
     if (T.workload) renderWorkload(T.workload);
     if (T.triage) renderTriage(T.triage);
     if (T.worklog) renderWorklog(T.worklog);
   }
+  var SC_STATS = [["tests_added", "Tests"], ["assertions_added", "Assertions"], ["bugs_found", "Bugs found"],
+                  ["fails_debugged", "Fails debugged"], ["mrs_merged", "MRs merged"]];
+  function renderScorecards(cards) {
+    var weeks = D.scorecard_weeks || 4, sw = cards.length ? cards[0].spark.length : 8;
+    $("sc-title").textContent = "Engineer scorecards · last " + weeks + " weeks";
+    $("sc-note").textContent = "Readiness is the average share of milestone gates passed across the blocks each engineer owns. " +
+      "Each number is compared with the same person's previous " + weeks + " weeks, not with teammates; cards are in name order. " +
+      "The line is tests plus assertions added per week over " + sw + " weeks.";
+    var box = $("scorecards"); box.textContent = "";
+    cards.forEach(function (c) {
+      var card = document.createElement("article"); card.className = "card";
+      var head = document.createElement("div"); head.className = "card-head";
+      var who = document.createElement("div");
+      var h = document.createElement("h4"); h.textContent = c.owner;
+      var sub = document.createElement("p"); sub.textContent = (c.blocks.length ? c.blocks : c.scopes).join(", ");
+      who.appendChild(h); who.appendChild(sub);
+      var rd = document.createElement("div");
+      var r = c.readiness;
+      rd.className = "ready " + (r == null ? "" : r < 0.5 ? "low" : r < 0.8 ? "mid" : "high");
+      rd.title = r == null ? "Owns no whole block" : "Average share of the " + D.gates.gates.length + " milestone gates passed in " + c.blocks.join(", ");
+      var rb = document.createElement("b"); rb.textContent = r == null ? "–" : Math.round(100 * r) + "%";
+      var rs = document.createElement("small"); rs.textContent = "readiness";
+      rd.appendChild(rb); rd.appendChild(rs);
+      head.appendChild(who); head.appendChild(rd); card.appendChild(head);
+      var dl = document.createElement("dl"); dl.className = "stats";
+      function stat(label, value, delta) {
+        var d = document.createElement("div");
+        var dt = document.createElement("dt"); dt.textContent = label;
+        var dd = document.createElement("dd"); dd.textContent = value;
+        d.appendChild(dt); d.appendChild(dd);
+        if (delta != null) { var x = document.createElement("dd"); x.className = "dl"; x.textContent = delta; d.appendChild(x); }
+        dl.appendChild(d);
+      }
+      SC_STATS.forEach(function (m) {
+        var v = c.has_activity ? c.recent[m[0]] : null, pv = c.prior ? c.prior[m[0]] : null;
+        stat(m[1], v == null ? "–" : String(v), v == null || pv == null ? null : (v === pv ? "same as before" : (v > pv ? "▲ " : "▼ ") + Math.abs(v - pv) + " vs prior"));
+      });
+      stat("Open bugs", String(c.open_bugs), "now");
+      card.appendChild(dl);
+      if (c.has_activity) {
+        var Wd = 260, H = 46, P = 6, s = svg(Wd, H);
+        s.setAttribute("aria-label", c.owner + ": tests plus assertions added per week, " + c.spark.join(", "));
+        var max = Math.max.apply(null, c.spark.concat([1])), min = Math.min.apply(null, c.spark);
+        function x(i) { return P + i * (Wd - 2 * P) / Math.max(1, c.spark.length - 1); }
+        function y(v) { return P + (1 - (v - min) / Math.max(1, max - min)) * (H - 2 * P); }
+        el(s, "path", { d: "M" + c.spark.map(function (v, i) { return x(i) + "," + y(v); }).join("L"), fill: "none", stroke: "var(--accent)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round", "data-line": "1" });
+        var li = c.spark.length - 1;
+        Viz.dot(s, x(li), y(c.spark[li]), "var(--accent)", 4);
+        Viz.crosshair(s, c.spark.map(function (_, i) { return x(i); }), 0, H, 0, Wd, function (i) {
+          return { title: c.owner + " · week ending " + c.spark_ends[i], rows: [{ value: String(c.spark[i]), label: "tests + assertions added", color: "var(--accent)" }] };
+        });
+        card.appendChild(s);
+      }
+      box.appendChild(card);
+    });
+    Viz.table(box.parentNode, "Show scorecards as a table", ["Engineer", "Readiness"].concat(SC_STATS.map(function (m) { return m[1]; })).concat(["Open bugs"]),
+      cards.map(function (c) { return [c.owner, c.readiness == null ? "–" : Math.round(100 * c.readiness) + "%"].concat(SC_STATS.map(function (m) { return c.has_activity ? String(c.recent[m[0]]) : "–"; })).concat([String(c.open_bugs)]); }));
+  }
+
   function renderWorkload(W) {
     var box = $("workload"); box.textContent = "";
     var max = Math.max.apply(null, W.people.map(function (p) { return p.total; }).concat([W.mean * W.factor, 1]));
