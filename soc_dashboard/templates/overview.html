@@ -116,6 +116,7 @@
       "<td><a class=\"proj\" href=\"" + esc(p.href) + "\">" + esc(p.name) + "</a><div class=\"small\">" + p.blocks + " blocks" + (p.regression_href ? " · <a class=\"go\" style=\"font-size:.76rem;margin:0\" href=\"" + esc(p.regression_href) + "\">Regression</a>" : "") + "</div></td>" +
       "<td>" + (p.milestone ? "<div style=\"display:flex;gap:8px;align-items:center;flex-wrap:wrap\"><b>" + esc(p.milestone) + "</b><span class=\"pill " + (p.met ? "ok" : "bad") + "\">" + (p.met ? "ready" : p.checks_ok + " of " + p.checks + " met") + "</span></div>" +
         (p.due ? "<div class=\"small\">due " + esc(p.due) + "</div>" : "") +
+        (p.gates && p.gates.total ? "<div class=\"small\">Gates <b>" + p.gates.done + "</b> of " + p.gates.total + " passed" + (p.gates.at_risk ? " · <span class=\"down\">" + p.gates.at_risk + " at risk</span>" : "") + "</div>" : "") +
         (p.failing.length ? "<div class=\"gaps\">Short on: " + p.failing.map(esc).join("; ") + "</div>" : "") : "<span class=\"muted\">none set</span>") + "</td>" +
       "<td><div class=\"rate-cell\"><span class=\"big\">" + pct(p.rate) + "</span><figure class=\"wave compact\" data-wave=\"" + D.projects.indexOf(p) + "\"></figure></div><div class=\"small\">" + p.sims + " sims</div>" + fcPill(p.forecast) + "</td>" +
       "<td class=\"r\"><span class=\"big\">" + p.cov_met + "</span><span class=\"muted\"> / " + p.cov_cells + "</span></td>" +

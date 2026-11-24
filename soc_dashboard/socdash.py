@@ -30,16 +30,35 @@ TEMPLATES = HERE / "templates"
 # Input files a project folder holds. config.json may rename any of them under "files".
 DEFAULT_FILES = {"regression": "regression_runs.csv", "coverage": "coverage.csv",
                  "bugs": "bugs.csv", "testplan": "testplan.csv", "owners": "owners.csv",
-                 "testplan_history": "testplan_history.csv", "owner_targets": "owner_targets.csv"}
+                 "testplan_history": "testplan_history.csv", "owner_targets": "owner_targets.csv",
+                 "gates": "gates.csv", "triage": "triage.csv", "worklog": "worklog.csv"}
 # A project without one of these files simply goes without the views that need it.
-OPTIONAL_FILES = {"owners", "testplan_history", "owner_targets"}
+OPTIONAL_FILES = {"owners", "testplan_history", "owner_targets", "gates", "triage", "worklog"}
+GATE_COLS = ("block", "gate")
+GATE_STATES = ("done", "in_progress", "at_risk", "not_started")
+TRIAGE_COLS = ("id", "block", "failed_at", "triaged_at")
+WORKLOG_COLS = ("week_end", "owner", "kind", "hours")
+WORK_KINDS = ("planned", "unplanned")
+# Gates every block passes on the way to sign-off. "auto" gates are worked out from the data
+# already loaded; the others come from gates.csv. config.json may replace this list.
+DEFAULT_GATES = [
+    {"id": "tb_bringup", "name": "TB bring-up"},
+    {"id": "first_pass", "name": "First test passes", "auto": "first_pass"},
+    {"id": "features_tested", "name": "All features tested", "auto": "testplan_passing"},
+    {"id": "code_cov", "name": "Code coverage ≥ 90%", "auto": "code_coverage", "threshold": 90},
+    {"id": "func_cov", "name": "Functional coverage ≥ 95%", "auto": "functional_coverage", "threshold": 95},
+    {"id": "no_critical", "name": "No open critical bugs", "auto": "no_open_critical"},
+    {"id": "signoff", "name": "DV sign-off"},
+]
+GATE_AUTOS = ("first_pass", "testplan_passing", "code_coverage", "functional_coverage", "no_open_critical")
 TESTPLAN_HISTORY_COLS = ("date", "id", "status")
 OWNER_TARGET_COLS = ("owner", "week_end", "target_passing")
 OWNER_COLS = ("owner", "scope")
 UNASSIGNED = "(unassigned)"
 # Tunable settings a project may override under "settings" in config.json.
 DEFAULT_SETTINGS = {"intermittent_window": 7, "bug_trend_weeks": 10, "stale_after_days": 3,
-                    "test_history_runs": 10, "weeks": 6, "forecast_runs": 10, "stuck_days": 7}
+                    "test_history_runs": 10, "weeks": 6, "forecast_runs": 10, "stuck_days": 7,
+                    "gate_risk_days": 7, "overload_factor": 1.5}
 UNGROUPED = "(no subsystem)"
 
 STATUSES = ("PASS", "FAIL", "TIMEOUT", "ERROR")
@@ -207,9 +226,47 @@ def load(data_dir: Path) -> dict:
             week_end = _date(r["week_end"], r["_where"]).isoformat()
             owner_targets[(r["owner"], week_end)] = _num(r["target_passing"], r["_where"], int)
 
+    gates = {}
+    if optional("gates"):
+        gate_ids = {g["id"] for g in config["gates"]}
+        for r in read_csv(files["gates"], GATE_COLS):
+            if r["gate"] not in gate_ids:
+                raise InputError(f"{r['_where']}: gate '{r['gate']}' is not one of {', '.join(sorted(gate_ids))}")
+            gates[(r["block"], r["gate"])] = {
+                "status": _choice(r, "status", GATE_STATES) if r.get("status") else None,
+                "date": _date(r["date"], r["_where"]) if r.get("date") else None,
+                "note": r.get("note", ""),
+            }
+
+    triage = []
+    if optional("triage"):
+        for r in read_csv(files["triage"], TRIAGE_COLS):
+            failed = _datetime(r["failed_at"], r["_where"])
+            done = _datetime(r["triaged_at"], r["_where"]) if r["triaged_at"] else None
+            if done and done < failed:
+                raise InputError(f"{r['_where']}: triaged_at is before failed_at")
+            triage.append({"id": r["id"], "block": r["block"], "failed_at": failed, "triaged_at": done,
+                           "signature": r.get("signature", "")})
+
+    worklog = []
+    if optional("worklog"):
+        for r in read_csv(files["worklog"], WORKLOG_COLS):
+            worklog.append({"week_end": _date(r["week_end"], r["_where"]), "owner": r["owner"],
+                            "kind": _choice(r, "kind", WORK_KINDS), "hours": _num(r["hours"], r["_where"]),
+                            "label": r.get("label", "") or ("planned work" if r["kind"].lower() == "planned" else "unplanned work")})
+
     return {"config": config, "dir": data_dir, "runs": runs, "coverage": coverage,
             "coverage_history": coverage_history, "bugs": bugs, "testplan": testplan,
-            "testplan_history": testplan_history, "owners": owners, "owner_targets": owner_targets}
+            "testplan_history": testplan_history, "owners": owners, "owner_targets": owner_targets,
+            "gates": gates, "triage": triage, "worklog": worklog}
+
+
+def _datetime(value: str, where: str) -> dt.datetime:
+    """A date or a date and time: 2026-11-21, 2026-11-21 14:30 or 2026-11-21T14:30."""
+    try:
+        return dt.datetime.fromisoformat(value.replace(" ", "T", 1))
+    except ValueError:
+        raise InputError(f"{where}: '{value}' is not a date or date-time like 2026-11-21 14:30") from None
 
 
 def check_owner_scopes(owners, runs, config):
@@ -269,6 +326,17 @@ def load_config(path: Path) -> dict:
                 raise InputError(f"{path}: block '{b}' is listed under both '{owner[b]}' and '{ss}'")
             owner[b] = ss
     config["block_subsystem"] = owner
+    gates = config.get("gates", DEFAULT_GATES)
+    if not isinstance(gates, list) or not gates:
+        raise InputError(f"{path}: \"gates\" must be a non-empty list")
+    seen_gates = set()
+    for g in gates:
+        if not isinstance(g, dict) or not g.get("id") or not g.get("name") or g["id"] in seen_gates:
+            raise InputError(f"{path}: every gate needs a unique \"id\" and a \"name\"")
+        if g.get("auto") and g["auto"] not in GATE_AUTOS:
+            raise InputError(f"{path}: gate '{g['id']}' has unknown auto '{g['auto']}'; use {', '.join(GATE_AUTOS)}")
+        seen_gates.add(g["id"])
+    config["gates"] = gates
     config["project"] = config.get("project") or path.parent.name
     config["files"] = {**DEFAULT_FILES, **config.get("files", {})}
     config["settings"] = {**DEFAULT_SETTINGS, **config.get("settings", {})}
@@ -954,6 +1022,212 @@ def build_regression_payload(data: dict, links: dict) -> dict:
     }
 
 
+CODE_METRICS = ("line", "branch", "toggle", "fsm")
+
+
+def _latest_cells(history, block, metrics, day=None):
+    """Latest coverage cell per metric for a block, on or before `day` (all dates if None)."""
+    snap = {}
+    for c in history:
+        if c["block"] != block or c["metric"] not in metrics:
+            continue
+        if day is not None and c["date"] is not None and c["date"] > day:
+            continue
+        if c["metric"] not in snap or (c["date"] or dt.date.min) >= (snap[c["metric"]]["date"] or dt.date.min):
+            snap[c["metric"]] = c
+    return snap
+
+
+def _gate_auto(data, block, gate):
+    """(met: True/False/None for no data, date passed or None, note) for an automatic gate."""
+    kind = gate["auto"]
+    if kind == "first_pass":
+        runs = [r for r in data["runs"] if r["block"] == block]
+        if not runs:
+            return None, None, "no runs yet"
+        passed = sorted(r["date"] for r in runs if r["status"] == "PASS")
+        return (True, passed[0], f"first pass {passed[0]:%b %d}") if passed else (False, None, "no passing run yet")
+    if kind == "testplan_passing":
+        items = [t for t in data["testplan"] if t["block"] == block]
+        if not items:
+            return None, None, "no testplan items"
+        passing = sum(1 for t in items if t["status"] == "passing")
+        note = f"{passing}/{len(items)} items passing"
+        if passing < len(items):
+            return False, None, note
+        ids = {t["id"] for t in items}
+        dates = [h["date"] for h in data["testplan_history"] if h["id"] in ids and h["status"] == "passing"]
+        return True, max(dates) if dates else None, note
+    if kind in ("code_coverage", "functional_coverage"):
+        metrics = CODE_METRICS if kind == "code_coverage" else ("functional",)
+        threshold = gate.get("threshold", 90 if kind == "code_coverage" else 95)
+        hist = data["coverage_history"]
+        snap = _latest_cells(hist, block, metrics)
+        if not snap:
+            return None, None, "no coverage data"
+        pcts = {m: 100 * c["covered"] / c["total"] for m, c in snap.items()}
+        low = min(pcts, key=pcts.get)
+        note = f"{low} {pcts[low]:.1f}%" if len(pcts) > 1 else f"{pcts[low]:.1f}%"
+        if pcts[low] < threshold:
+            return False, None, ("lowest: " + note) if len(pcts) > 1 else note
+        days = sorted({c["date"] for c in hist if c["block"] == block and c["date"]})
+        for day in days:  # first snapshot where every metric was at or above the threshold
+            s = _latest_cells(hist, block, metrics, day)
+            if len(s) == len(snap) and all(100 * c["covered"] / c["total"] >= threshold for c in s.values()):
+                return True, day, note
+        return True, None, note
+    if kind == "no_open_critical":
+        crit = [b for b in data["bugs"] if b["block"] == block and b["severity"] == "S1"]
+        open_ = [b for b in crit if b["status"] in UNRESOLVED]
+        if open_:
+            return False, None, f"{len(open_)} open S1: " + ", ".join(b["id"] for b in open_[:3])
+        closed = [b["closed"] for b in crit if b["closed"]]
+        return True, max(closed) if closed else None, "no S1 bugs open"
+    return None, None, ""
+
+
+def gate_matrix(data: dict, as_of: dt.date) -> dict:
+    """Every block against every gate: done, in progress, at risk or not started.
+
+    Automatic gates are decided by the data; gates.csv gives the manual gates' status and the
+    due date of anything not yet done. A gate that is not done and is due within
+    `gate_risk_days` (or overdue) counts as at risk.
+    """
+    cfg = data["config"]
+    risk_by = as_of + dt.timedelta(days=cfg["settings"]["gate_risk_days"])
+    blocks = sorted({r["block"] for k in ("runs", "coverage", "bugs", "testplan") for r in data[k]})
+    summary = Counter()
+    rows = []
+    for block in blocks:
+        cells = []
+        for g in cfg["gates"]:
+            manual = data["gates"].get((block, g["id"]), {})
+            met, date, note = (None, None, manual.get("note", ""))
+            if g.get("auto"):
+                met, date, note = _gate_auto(data, block, g)
+                if manual.get("note"):
+                    note = manual["note"]
+            if met is True or (not g.get("auto") and manual.get("status") == "done"):
+                status = "done"
+                # gates.csv's date is a due date unless the row itself says the gate is done
+                date = date or (manual.get("date") if manual.get("status") == "done" else None)
+                due = False
+            else:
+                due_date = manual.get("date")
+                status = manual.get("status") if manual.get("status") not in (None, "done") else (
+                    "in_progress" if met is False else "not_started")
+                if due_date and due_date <= risk_by:
+                    status = "at_risk"
+                date, due = due_date, bool(due_date)
+            summary[status] += 1
+            cells.append({"s": status, "d": date.isoformat() if date else None, "due": due,
+                          "note": note, "auto": bool(g.get("auto"))})
+        rows.append({"block": block, "cells": cells, "done": sum(c["s"] == "done" for c in cells)})
+    return {"gates": [{"id": g["id"], "name": g["name"], "auto": bool(g.get("auto"))} for g in cfg["gates"]],
+            "rows": rows, "summary": {s: summary[s] for s in GATE_STATES},
+            "total": sum(summary.values()), "risk_days": cfg["settings"]["gate_risk_days"]}
+
+
+def workload(data: dict) -> dict | None:
+    """Open work per person: testplan items not passing, unresolved bugs and failing tests.
+
+    Meant to spot overload and plan cover, not to rank people: people are listed by name and
+    flagged only when far above the team average.
+    """
+    if not data.get("owners"):
+        return None
+    cfg = data["config"]
+    owner_of = owner_lookup(data["owners"])
+    block_ss = {}
+    for r in data["runs"]:
+        block_ss.setdefault(r["block"], hierarchy_path(r, cfg["block_subsystem"])[0])
+
+    def block_owner(block):
+        return owner_of(block_ss.get(block, cfg["block_subsystem"].get(block, UNGROUPED)), block)
+
+    load = defaultdict(Counter)
+    for t in data["testplan"]:
+        if t["status"] != "passing":
+            load[block_owner(t["block"])]["plan"] += 1
+    for b in data["bugs"]:
+        if b["status"] in UNRESOLVED:
+            load[b.get("owner") or block_owner(b["block"])]["bugs"] += 1
+    order = run_order(data["runs"])
+    latest = order[-1][0] if order else None
+    failing = {}
+    for r in data["runs"]:
+        if r["run_id"] != latest:
+            continue
+        key = (*hierarchy_path(r, cfg["block_subsystem"]), r["test"])
+        if r["status"] != "PASS":
+            failing[key] = True
+    for (ss, mod, inst, test) in failing:
+        load[owner_of(ss, mod, inst, test)]["debug"] += 1
+    names = {o["owner"] for o in data["owners"]} | set(load)
+    people = []
+    for name in sorted(names, key=lambda n: (n == UNASSIGNED, n.lower())):
+        c = load[name]
+        people.append({"owner": name, "plan": c["plan"], "bugs": c["bugs"], "debug": c["debug"],
+                       "total": c["plan"] + c["bugs"] + c["debug"]})
+    team = [p for p in people if p["owner"] != UNASSIGNED]
+    mean = sum(p["total"] for p in team) / len(team) if team else 0
+    factor = cfg["settings"]["overload_factor"]
+    for p in people:
+        p["over"] = p["owner"] != UNASSIGNED and p["total"] > factor * mean and p["total"] - mean >= 5  # ignore small-number noise
+    return {"people": people, "mean": mean, "factor": factor}
+
+
+def _median(xs):
+    xs = sorted(xs)
+    if not xs:
+        return None
+    m = len(xs) // 2
+    return xs[m] if len(xs) % 2 else (xs[m - 1] + xs[m]) / 2
+
+
+def triage_stats(rows: list, as_of: dt.date, weeks: int) -> dict | None:
+    """Hours from a regression failure to a root cause being assigned, for the whole team."""
+    if not rows:
+        return None
+    now = dt.datetime.combine(as_of, dt.time(23, 59))
+    hours = lambda r: (r["triaged_at"] - r["failed_at"]).total_seconds() / 3600
+    points = []
+    for w in range(weeks - 1, -1, -1):
+        end = as_of - dt.timedelta(days=7 * w)
+        start = end - dt.timedelta(days=7)
+        done = [hours(r) for r in rows if r["triaged_at"] and start < r["triaged_at"].date() <= end]
+        points.append({"date": end.isoformat(), "median": _median(done), "count": len(done)})
+    recent_from = as_of - dt.timedelta(days=28)
+    recent = [r for r in rows if r["triaged_at"] and r["triaged_at"].date() > recent_from]
+    by_block = defaultdict(list)
+    for r in recent:
+        by_block[r["block"]].append(hours(r))
+    waiting = sorted(({"id": r["id"], "block": r["block"], "signature": r["signature"],
+                       "age_h": round((now - r["failed_at"]).total_seconds() / 3600, 1)}
+                      for r in rows if not r["triaged_at"]), key=lambda r: -r["age_h"])
+    return {"weeks": points, "median_recent": _median([hours(r) for r in recent]), "recent_count": len(recent),
+            "by_block": [{"block": b, "median": _median(v), "count": len(v)} for b, v in sorted(by_block.items())],
+            "waiting": waiting}
+
+
+def worklog_stats(rows: list, weeks: int) -> dict | None:
+    """Planned vs unplanned hours per week for the team, and what the unplanned time went on."""
+    if not rows:
+        return None
+    by_week = defaultdict(Counter)
+    for r in rows:
+        by_week[r["week_end"]][r["kind"]] += r["hours"]
+    ends = sorted(by_week)[-weeks:]
+    latest = ends[-1]
+    labels = Counter()
+    for r in rows:
+        if r["week_end"] == latest:
+            labels[(r["kind"], r["label"])] += r["hours"]
+    return {"weeks": [{"date": d.isoformat(), "planned": by_week[d]["planned"], "unplanned": by_week[d]["unplanned"]} for d in ends],
+            "labels": [{"kind": k, "label": l, "hours": h} for (k, l), h in labels.most_common()],
+            "people": len({r["owner"] for r in rows if r["week_end"] == latest})}
+
+
 def build_payload(data: dict, home: str | None = None) -> dict:
     order = run_order(data["runs"])
     data["as_of"] = dt.date.fromisoformat(data["config"]["as_of"]) if data["config"].get("as_of") else order[-1][1]
@@ -978,6 +1252,10 @@ def build_payload(data: dict, home: str | None = None) -> dict:
         "home": home,
         "regression_href": None,
         "need": current_milestone(cfg)["need"],
+        "gates": gate_matrix(data, data["as_of"]),
+        "team": {"workload": workload(data),
+                 "triage": triage_stats(data["triage"], data["as_of"], cfg["settings"]["weeks"]),
+                 "worklog": worklog_stats(data["worklog"], cfg["settings"]["weeks"])},
         # block -> its module node on the regression page, so block links land in the right place
         "block_nodes": {r["block"]: node_slug(hierarchy_path(r, cfg["block_subsystem"])[:2]) for r in data["runs"]},
     }
@@ -1007,6 +1285,8 @@ def project_card(payload: dict, href: str) -> dict:
         "forecast": top["forecast"],
         # for the overview's run waveform
         "need": payload["need"], "runs": [t["run"] for t in top["trend"]], "dates": [t["date"] for t in top["trend"]],
+        "gates": {"done": payload["gates"]["summary"]["done"], "at_risk": payload["gates"]["summary"]["at_risk"],
+                  "total": payload["gates"]["total"]},
     }
 
 

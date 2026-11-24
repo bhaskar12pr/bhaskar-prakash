@@ -21,6 +21,8 @@ stand, how fast they are moving, and whether they will be done in time.
 | Coverage    | Each metric against target, a block × metric matrix, and **coverage over time** per metric with the pace needed to reach target |
 | Bugs        | Unresolved bugs by severity, weekly trend, the open list with age, and **time to fix** per severity (median, 90th percentile, oldest open) |
 | Testplan    | **Items by status at the end of each week**, and planned / written / passing per feature |
+| Milestone gates | Every block against 7 gates (TB bring-up, first test passes, all features tested, code coverage ≥ 90%, functional coverage ≥ 95%, no open critical bugs, DV sign-off): done, in progress, at risk or not started, with the date passed or the due date |
+| Team health | Open work per person against the team average with an overload flag, triage turnaround (failure to root cause), and planned vs unplanned team hours |
 | Sign-off    | Each milestone's criteria evaluated as met or not |
 
 Every section can be narrowed to one block with the chips at the top or the block table.
@@ -101,8 +103,9 @@ python3 socdash.py build --data projects/orion_soc --out orion.html
 
 ## Project files
 
-Each project folder holds the files below. `owners.csv`, `owner_targets.csv` and
-`testplan_history.csv` are optional; without them the views that need them are hidden.
+Each project folder holds the files below. `owners.csv`, `owner_targets.csv`,
+`testplan_history.csv`, `gates.csv`, `triage.csv` and `worklog.csv` are optional; without
+them the views that need them are hidden (gates still show what the data can decide).
 
 ### `regression_runs.csv` — one row per simulation
 
@@ -208,6 +211,59 @@ One row per status change. An item's status at a date is its latest change on or
 date; before its first change it counts as planned. Items with no changes keep their current
 status from `testplan.csv`. This drives **items by status at the end of each week**.
 
+### `gates.csv` (optional)
+
+```csv
+block,gate,status,date,note
+ddr_ctrl,tb_bringup,done,2026-09-22,
+ddr_ctrl,code_cov,,2026-11-25,
+ddr_ctrl,signoff,not_started,2026-12-11,
+```
+
+Five of the default gates are worked out from the data and need no row: `first_pass`
+(a test passed), `features_tested` (every testplan item passing), `code_cov` (line, branch,
+toggle and FSM all at or above 90%), `func_cov` (functional at or above 95%) and
+`no_critical` (no unresolved S1 bug). Rows give the manual gates (`tb_bringup`, `signoff`)
+their status and date, and give any gate not yet done its **due date**. A gate that is not
+done and is due within `gate_risk_days` (default 7), or overdue, shows as **at risk**. Status
+is `done`, `in_progress`, `at_risk` or `not_started`; `note` is optional. To use different
+gates, set `"gates"` in `config.json` to a list of `{"id", "name"}`, adding `"auto"` (one of
+`first_pass`, `testplan_passing`, `code_coverage`, `functional_coverage`,
+`no_open_critical`) and `"threshold"` for automatic ones.
+
+### `triage.csv` (optional)
+
+```csv
+id,block,signature,failed_at,triaged_at
+TRI-001,ddr_ctrl,[DDR_SCB] read data mismatch,2026-11-20 02:14,2026-11-20 16:40
+TRI-002,pcie_ctrl,[PH_TIMEOUT] ...,2026-11-21 03:05,
+```
+
+One row per regression failure: when it failed and when a root cause was assigned (empty
+while still waiting). Shown as the team's weekly median hours to root cause and the queue of
+failures still waiting.
+
+### `worklog.csv` (optional)
+
+```csv
+week_end,owner,kind,label,hours
+2026-11-21,Asha,planned,coverage closure,22
+2026-11-21,Asha,unplanned,regression firefighting,9
+```
+
+Hours per person per week, `kind` `planned` or `unplanned` (for example from Jira labels).
+Shown only as team totals: planned vs unplanned hours per week and where the unplanned time
+went.
+
+### Workload
+
+Derived from data you already have, so it needs no file: per person, testplan items not
+passing in the blocks they own, unresolved bugs (their `owner` column, or the block's owner)
+and failing tests in the latest run. People are listed by name, never ranked, and flagged
+only when their total is more than `overload_factor` (default 1.5) times the team average
+and at least 5 items above it. Compare people with their own trend; compare across people
+only to rebalance work.
+
 ### `testplan.csv`
 
 `id, block, feature, item, milestone, status, test` with status `planned`, `written` or
@@ -249,6 +305,9 @@ milestones, criteria, file names and settings.
 | `settings.weeks` | weeks offered in the week picker (weekly digest and owners) | 6 |
 | `settings.forecast_runs` | recent runs the forecast line is fitted to | 10 |
 | `settings.stuck_days` | a test failing this many days or more counts as stuck | 7 |
+| `settings.gate_risk_days` | a gate not done and due within this many days (or overdue) is at risk | 7 |
+| `settings.overload_factor` | flag a person whose open work is this many times the team average | 1.5 |
+| `gates` | the milestone gates and their order | the 7 gates above |
 | `subsystems` | group blocks into subsystems when the regression CSV has no `subsystem` column | none |
 | `milestones` | ordered list of `name`, `date` and `criteria` | none |
 

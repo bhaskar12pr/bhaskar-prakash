@@ -27,7 +27,7 @@ DV-101,ECC decoder does not flag double-bit errors on burst chop,ddr_ctrl,S1,ope
 DV-102,Completion timeout leaves non-posted queue blocked,pcie_ctrl,S1,open,2026-11-15,,
 DV-103,tRFC not honoured after self-refresh exit at 3200 MT/s,ddr_ctrl,S2,open,2026-11-09,,Elif
 DV-104,LTSSM hangs in Recovery.RcvrLock after speed change,pcie_ctrl,S2,fixed,2026-11-11,,
-DV-105,Responses reorder across VCs under QoS starvation,noc_fabric,S2,open,2026-11-17,,
+DV-105,Responses reorder across VCs under QoS starvation,noc_fabric,S2,open,2026-11-17,,Asha
 DV-106,Tamper alert delayed by one clock domain crossing,sec_crypto,S2,fixed,2026-11-13,,
 DV-107,U2 exit latency exceeds spec when LPM and remote wake overlap,usb3_ctrl,S2,open,2026-11-18,,
 DV-108,Snoop filter evicts dirty line without writeback,cpu_cluster,S2,closed,2026-10-22,2026-11-03,
@@ -35,7 +35,7 @@ DV-109,Chained descriptor drops last beat on 4KB boundary,dma_engine,S2,closed,2
 DV-110,Read data corruption with bank group interleave,ddr_ctrl,S1,closed,2026-10-12,2026-11-01,
 DV-111,MSI-X table writes ignored after function level reset,pcie_ctrl,S1,closed,2026-10-19,2026-10-30,
 DV-112,PMU counter overflow interrupt fires one event late,cpu_cluster,S3,open,2026-11-14,,
-DV-113,Decode error response returns wrong ID width,noc_fabric,S3,open,2026-11-10,,
+DV-113,Decode error response returns wrong ID width,noc_fabric,S3,open,2026-11-10,,Asha
 DV-114,Power-down entry blocked by idle refresh counter,ddr_ctrl,S3,open,2026-11-16,,
 DV-115,Isochronous packet counter wraps early,usb3_ctrl,S3,fixed,2026-11-12,,
 DV-116,Key ladder status register reads stale value,sec_crypto,S3,open,2026-11-19,,

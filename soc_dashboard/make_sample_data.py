@@ -91,7 +91,19 @@ ORION = {
                ("Ben", "connectivity_ss"), ("Dana", "platform_ss"),
                ("Asha", "pcie_ctrl/u_pcie0/completion_timeout")],
     # bugs.csv owner column: bugs on u_ddr1 belong to its owner, not the memory_ss owner.
-    "bug_owner": {"DV-101": "Elif", "DV-103": "Elif"},
+    "bug_owner": {"DV-101": "Elif", "DV-103": "Elif", "DV-105": "Asha", "DV-113": "Asha"},
+    # gates.csv: manual gates and due dates. (block, gate) -> (status or "", date). Dates are
+    # days relative to AS_OF; a negative number is in the past.
+    "gate_rows": {
+        "*": {"tb_bringup": ("done", -60), "features_tested": ("", 18), "code_cov": ("", 18),
+              "func_cov": ("", 18), "no_critical": ("", 18), "signoff": ("not_started", 20)},
+        "ddr_ctrl": {"code_cov": ("", 4), "no_critical": ("", 5), "signoff": ("not_started", 20)},
+        "pcie_ctrl": {"func_cov": ("", 6), "no_critical": ("", 3)},
+        "usb3_ctrl": {"tb_bringup": ("done", -45)},
+        "io_mux": {"signoff": ("in_progress", 9)},
+    },
+    "triage": {"rows": 48, "start_hours": 34, "end_hours": 11, "waiting": 3},
+    "worklog": {"unplanned_rise": True},
     # (block, test) -> (signature index, only this instance or None)
     "sticky": {("ddr_ctrl", "ecc_double_bit"): (0, "u_ddr1"), ("pcie_ctrl", "completion_timeout"): (0, None)},
     "flaky": {("noc_fabric", "deadlock_stress"): 0.45, ("usb3_ctrl", "u1_u2_lpm"): 0.3,
@@ -172,6 +184,15 @@ LYRA = {
     "subsystems": {"cpu_ss": ["cpu_cluster", "pmu"], "multimedia_ss": ["gpu_core", "isp_pipeline", "mipi_csi"],
                    "memory_ss": ["lpddr5_ctrl"]},
     "late_tests": {("gpu_core", "mmu_fault"): 9, ("isp_pipeline", "hdr_merge"): 4},
+    "gate_rows": {
+        "*": {"tb_bringup": ("done", -80), "features_tested": ("", 10), "code_cov": ("", 10),
+              "func_cov": ("", 10), "no_critical": ("", 10), "signoff": ("in_progress", 13)},
+        "gpu_core": {"func_cov": ("", 5)},
+        "pmu": {"signoff": ("done", -2)},
+        "mipi_csi": {"signoff": ("done", -1)},
+    },
+    "triage": {"rows": 30, "start_hours": 14, "end_hours": 8, "waiting": 1},
+    "worklog": {"unplanned_rise": False},
     # pmu has no owner yet, so it shows as unassigned.
     "owners": [("Farah", "cpu_cluster"), ("Gus", "multimedia_ss"), ("Hana", "memory_ss"),
                ("Hana", "isp_pipeline")],
@@ -221,6 +242,8 @@ NOVA = {
                          features=["Pin mux", "Interrupts"], sigs=["[MUX_CHK] ow mismatch s=<N> i=<HEX> exp=<N> act=<N>"]),
     },
     "subsystems": {"serial_ss": ["i2c_ctrl", "spi_ctrl", "uart"], "pin_ss": ["gpio_mux"]},
+    "gate_rows": {"*": {"tb_bringup": ("done", -50), "signoff": ("done", -1)},
+                  "uart": {"signoff": ("in_progress", 3)}},
     "sticky": {},
     "flaky": {},
     "bugs": [("NV-11", "spi_ctrl", "S3", "closed", 15, 6, "Quad IO turnaround cycle count off by one"),
@@ -366,6 +389,59 @@ def write_csv(path, header, rows):
         w.writerows(rows)
 
 
+def gate_rows(spec):
+    rows = []
+    for block in spec["blocks"]:
+        merged = {**spec["gate_rows"].get("*", {}), **spec["gate_rows"].get(block, {})}
+        for gate, (status, days) in merged.items():
+            rows.append([block, gate, status, AS_OF + dt.timedelta(days=days), ""])
+    return rows
+
+
+def triage_rows(spec, rng):
+    """Failures and when a root cause was assigned; triage gets faster over six weeks."""
+    t = spec["triage"]
+    span = 42
+    rows = []
+    for k in range(t["rows"]):
+        day = span * k / t["rows"]
+        block = rng.choice(list(spec["blocks"]))
+        failed = dt.datetime.combine(AS_OF - dt.timedelta(days=span - day), dt.time(2, 0)) + dt.timedelta(minutes=rng.randint(0, 300))
+        typical = t["start_hours"] + (t["end_hours"] - t["start_hours"]) * k / t["rows"]
+        hours = max(0.5, rng.lognormvariate(0, 0.55) * typical)
+        done = failed + dt.timedelta(hours=hours)
+        rows.append([f"TRI-{k + 1:03d}", block, rng.choice(spec["blocks"][block]["sigs"]),
+                     failed.strftime("%Y-%m-%d %H:%M"), done.strftime("%Y-%m-%d %H:%M")])
+    for k in range(t["waiting"]):  # still waiting for a root cause
+        block = rng.choice(list(spec["blocks"]))
+        failed = dt.datetime.combine(AS_OF - dt.timedelta(days=k + 1), dt.time(3, 10))
+        rows.append([f"TRI-{t['rows'] + k + 1:03d}", block, rng.choice(spec["blocks"][block]["sigs"]),
+                     failed.strftime("%Y-%m-%d %H:%M"), ""])
+    return rows
+
+
+PLANNED = ["coverage closure", "test development", "testplan review"]
+UNPLANNED = ["regression firefighting", "design team support", "license or compute wait", "tool issues"]
+
+
+def worklog_rows(spec, rng):
+    """Hours per person per week, split into planned and unplanned work by label."""
+    people = sorted({o for o, _ in spec["owners"]})
+    rows = []
+    for w in range(5, -1, -1):
+        end = AS_OF - dt.timedelta(days=7 * w)
+        rise = spec["worklog"]["unplanned_rise"] and w <= 1
+        for person in people:
+            unplanned = rng.uniform(5, 10) + (rng.uniform(5, 9) if rise else 0)
+            planned = max(10, 38 - unplanned + rng.uniform(-3, 3))
+            for label, share in zip(PLANNED, (0.55, 0.35, 0.10)):
+                rows.append([end, person, "planned", label, round(planned * share, 1)])
+            shares = (0.45, 0.25, 0.2, 0.1) if rise else (0.3, 0.35, 0.2, 0.15)
+            for label, share in zip(UNPLANNED, shares):
+                rows.append([end, person, "unplanned", label, round(unplanned * share, 1)])
+    return rows
+
+
 def write_project(spec):
     rng = random.Random(spec["seed"])
     out = ROOT / spec["folder"]
@@ -393,6 +469,12 @@ def write_project(spec):
     if spec.get("owners"):
         write_csv(out / "owners.csv", ["owner", "scope"], spec["owners"])
         write_csv(out / "owner_targets.csv", ["owner", "week_end", "target_passing"], owner_targets(out))
+    if spec.get("gate_rows"):
+        write_csv(out / "gates.csv", ["block", "gate", "status", "date", "note"], gate_rows(spec))
+    if spec.get("triage"):
+        write_csv(out / "triage.csv", ["id", "block", "signature", "failed_at", "triaged_at"], triage_rows(spec, rng))
+    if spec.get("worklog") and spec.get("owners"):
+        write_csv(out / "worklog.csv", ["week_end", "owner", "kind", "label", "hours"], worklog_rows(spec, rng))
     print(f"Wrote {out}")
 
 

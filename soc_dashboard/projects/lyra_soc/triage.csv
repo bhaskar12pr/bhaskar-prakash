@@ -1,0 +1,32 @@
+id,block,signature,failed_at,triaged_at
+TRI-001,isp_pipeline,[ISP_REF] frame CRC mismatch frame=<N> exp=<HEX> act=<HEX>,2026-10-10 06:40,2026-10-10 23:19
+TRI-002,mipi_csi,[CSI_PKT] ECC header error not reported vc=<N>,2026-10-12 04:29,2026-10-13 08:01
+TRI-003,pmu,[PMU_SEQ] domain <N> isolation released before power good,2026-10-13 02:46,2026-10-13 11:51
+TRI-004,gpu_core,[GPU_SCB] pixel mismatch tile=<N> x=<N> y=<N>,2026-10-15 05:58,2026-10-16 01:36
+TRI-005,isp_pipeline,[ISP_REF] frame CRC mismatch frame=<N> exp=<HEX> act=<HEX>,2026-10-16 05:15,2026-10-17 05:34
+TRI-006,pmu,[PMU_SEQ] domain <N> isolation released before power good,2026-10-17 05:10,2026-10-17 16:10
+TRI-007,cpu_cluster,[COH_SCB] snoop response mismatch line=<HEX> exp=<HEX> act=<HEX>,2026-10-19 03:42,2026-10-20 04:49
+TRI-008,pmu,[PMU_SEQ] domain <N> isolation released before power good,2026-10-20 05:39,2026-10-20 21:53
+TRI-009,pmu,[PMU_SEQ] domain <N> isolation released before power good,2026-10-22 03:24,2026-10-22 19:07
+TRI-010,pmu,[PMU_SEQ] domain <N> isolation released before power good,2026-10-23 05:26,2026-10-23 14:34
+TRI-011,gpu_core,"[PH_TIMEOUT] Explicit timeout of <N> hit, indicating a probable testbench issue",2026-10-24 06:28,2026-10-24 13:31
+TRI-012,mipi_csi,[CSI_PKT] ECC header error not reported vc=<N>,2026-10-26 02:45,2026-10-26 15:13
+TRI-013,cpu_cluster,[COH_SCB] snoop response mismatch line=<HEX> exp=<HEX> act=<HEX>,2026-10-27 02:47,2026-10-27 17:36
+TRI-014,pmu,[PMU_SEQ] domain <N> isolation released before power good,2026-10-29 05:30,2026-10-29 14:32
+TRI-015,isp_pipeline,[ISP_REF] frame CRC mismatch frame=<N> exp=<HEX> act=<HEX>,2026-10-30 04:06,2026-10-30 20:29
+TRI-016,mipi_csi,[CSI_PKT] ECC header error not reported vc=<N>,2026-10-31 02:15,2026-10-31 20:10
+TRI-017,cpu_cluster,[COH_SCB] snoop response mismatch line=<HEX> exp=<HEX> act=<HEX>,2026-11-02 04:38,2026-11-02 10:40
+TRI-018,cpu_cluster,[COH_SCB] snoop response mismatch line=<HEX> exp=<HEX> act=<HEX>,2026-11-03 03:20,2026-11-03 17:18
+TRI-019,pmu,[PMU_SEQ] domain <N> isolation released before power good,2026-11-05 03:54,2026-11-05 20:23
+TRI-020,lpddr5_ctrl,[LP5_TIMING] tWCKPRE violated by <N> cycles,2026-11-06 05:03,2026-11-06 16:41
+TRI-021,pmu,[PMU_SEQ] domain <N> isolation released before power good,2026-11-07 04:50,2026-11-07 12:14
+TRI-022,isp_pipeline,[ISP_REF] frame CRC mismatch frame=<N> exp=<HEX> act=<HEX>,2026-11-09 04:09,2026-11-10 00:22
+TRI-023,pmu,[PMU_SEQ] domain <N> isolation released before power good,2026-11-10 04:53,2026-11-10 10:08
+TRI-024,lpddr5_ctrl,[LP5_TIMING] tWCKPRE violated by <N> cycles,2026-11-12 06:07,2026-11-12 12:20
+TRI-025,gpu_core,[GPU_SCB] pixel mismatch tile=<N> x=<N> y=<N>,2026-11-13 06:54,2026-11-14 00:53
+TRI-026,mipi_csi,[CSI_PKT] ECC header error not reported vc=<N>,2026-11-14 04:14,2026-11-14 17:04
+TRI-027,isp_pipeline,[ISP_REF] frame CRC mismatch frame=<N> exp=<HEX> act=<HEX>,2026-11-16 05:44,2026-11-16 14:29
+TRI-028,cpu_cluster,[COH_SCB] snoop response mismatch line=<HEX> exp=<HEX> act=<HEX>,2026-11-17 03:42,2026-11-17 18:57
+TRI-029,pmu,[PMU_SEQ] domain <N> isolation released before power good,2026-11-19 06:24,2026-11-19 11:08
+TRI-030,lpddr5_ctrl,[LP5_TIMING] tWCKPRE violated by <N> cycles,2026-11-20 05:18,2026-11-20 12:47
+TRI-031,cpu_cluster,[COH_SCB] snoop response mismatch line=<HEX> exp=<HEX> act=<HEX>,2026-11-20 03:10,

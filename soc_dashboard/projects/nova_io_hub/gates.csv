@@ -1,0 +1,9 @@
+block,gate,status,date,note
+i2c_ctrl,tb_bringup,done,2026-10-02,
+i2c_ctrl,signoff,done,2026-11-20,
+spi_ctrl,tb_bringup,done,2026-10-02,
+spi_ctrl,signoff,done,2026-11-20,
+uart,tb_bringup,done,2026-10-02,
+uart,signoff,in_progress,2026-11-24,
+gpio_mux,tb_bringup,done,2026-10-02,
+gpio_mux,signoff,done,2026-11-20,

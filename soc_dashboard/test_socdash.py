@@ -460,6 +460,97 @@ class ProgressTest(unittest.TestCase):
             self.assertIn('"forecast":{"status":', html)
 
 
+class GatesAndTeamTest(unittest.TestCase):
+    def gate_data(self, **extra):
+        cfg = {"project": "P", "settings": dict(socdash.DEFAULT_SETTINGS), "block_subsystem": {},
+               "gates": socdash.DEFAULT_GATES}
+        runs = [run_row("r1", "FAIL", block="b"), run_row("r2", "PASS", block="b")]
+        cov = [{"date": D(2026, 11, 1), "block": "b", "metric": m, "covered": 85, "total": 100, "target": 90}
+               for m in socdash.CODE_METRICS + ("functional",)]
+        cov += [{"date": D(2026, 11, 8), "block": "b", "metric": m, "covered": 96, "total": 100, "target": 90}
+                for m in socdash.CODE_METRICS + ("functional",)]
+        data = {"config": cfg, "runs": runs, "coverage": cov[-5:], "coverage_history": cov,
+                "bugs": [{"id": "X-1", "block": "b", "severity": "S1", "status": "open", "opened": D(2026, 11, 1), "closed": None}],
+                "testplan": [{"id": "t1", "block": "b", "status": "passing"}, {"id": "t2", "block": "b", "status": "written"}],
+                "testplan_history": [], "gates": {}}
+        data.update(extra)
+        return data
+
+    def cells(self, data, as_of=D(2026, 11, 14)):
+        g = socdash.gate_matrix(data, as_of)
+        return {gate["id"]: cell for gate, cell in zip(g["gates"], g["rows"][0]["cells"])}, g
+
+    def test_auto_gates_follow_the_data(self):
+        c, g = self.cells(self.gate_data())
+        self.assertEqual((c["first_pass"]["s"], c["first_pass"]["d"]), ("done", "2026-11-02"))
+        self.assertEqual((c["code_cov"]["s"], c["code_cov"]["d"]), ("done", "2026-11-08"))  # first week all >= 90
+        self.assertEqual((c["func_cov"]["s"], c["func_cov"]["d"]), ("done", "2026-11-08"))
+        self.assertEqual(c["features_tested"]["s"], "in_progress")
+        self.assertIn("1/2", c["features_tested"]["note"])
+        self.assertEqual(c["no_critical"]["s"], "in_progress")
+        self.assertEqual((c["tb_bringup"]["s"], c["signoff"]["s"]), ("not_started", "not_started"))
+        self.assertEqual(g["total"], 7)
+
+    def test_due_dates_make_gates_at_risk_and_manual_status_counts(self):
+        gates = {("b", "no_critical"): {"status": None, "date": D(2026, 11, 18), "note": ""},
+                 ("b", "features_tested"): {"status": None, "date": D(2026, 12, 30), "note": ""},
+                 ("b", "tb_bringup"): {"status": "done", "date": D(2026, 9, 1), "note": ""},
+                 ("b", "first_pass"): {"status": None, "date": D(2026, 11, 10), "note": ""}}
+        c, g = self.cells(self.gate_data(gates=gates))
+        self.assertEqual((c["no_critical"]["s"], c["no_critical"]["d"], c["no_critical"]["due"]), ("at_risk", "2026-11-18", True))
+        self.assertEqual(c["features_tested"]["s"], "in_progress")  # due later than the 7-day window
+        self.assertEqual((c["tb_bringup"]["s"], c["tb_bringup"]["d"]), ("done", "2026-09-01"))
+        # a gate the data says is passed ignores its (past) due date
+        self.assertEqual((c["first_pass"]["s"], c["first_pass"]["d"]), ("done", "2026-11-02"))
+        self.assertEqual(g["summary"]["at_risk"], 1)
+
+    def test_workload_flags_only_clear_overload(self):
+        cfg = {"project": "P", "settings": dict(socdash.DEFAULT_SETTINGS), "block_subsystem": {}}
+        owners = [{"owner": n, "scope": b} for n, b in (("Ann", "a"), ("Bo", "b"), ("Cy", "c"))]
+        plan = [{"id": f"x{i}", "block": "a", "status": "planned"} for i in range(14)] + \
+               [{"id": "y", "block": "b", "status": "written"}, {"id": "z", "block": "c", "status": "passing"}]
+        runs = [run_row("r1", "PASS", block=b) for b in "abc"]
+        data = {"config": cfg, "owners": owners, "testplan": plan, "bugs": [], "runs": runs}
+        w = socdash.workload(data)
+        by = {p["owner"]: p for p in w["people"]}
+        self.assertEqual([p["owner"] for p in w["people"]], ["Ann", "Bo", "Cy"])  # by name, never ranked
+        self.assertEqual((by["Ann"]["total"], by["Ann"]["over"], by["Bo"]["over"]), (14, True, False))
+        self.assertIsNone(socdash.workload({**data, "owners": []}))
+
+    def test_triage_and_worklog(self):
+        T = socdash.dt.datetime
+        rows = [{"id": "1", "block": "b", "signature": "s", "failed_at": T(2026, 11, 10, 0), "triaged_at": T(2026, 11, 10, 10)},
+                {"id": "2", "block": "b", "signature": "s", "failed_at": T(2026, 11, 11, 0), "triaged_at": T(2026, 11, 11, 20)},
+                {"id": "3", "block": "c", "signature": "s", "failed_at": T(2026, 11, 13, 23, 59), "triaged_at": None}]
+        t = socdash.triage_stats(rows, D(2026, 11, 14), 2)
+        self.assertEqual(t["weeks"][-1], {"date": "2026-11-14", "median": 15.0, "count": 2})
+        self.assertEqual((t["waiting"][0]["id"], t["waiting"][0]["age_h"]), ("3", 24.0))
+        self.assertIsNone(socdash.triage_stats([], D(2026, 11, 14), 2))
+        log = [{"week_end": D(2026, 11, 14), "owner": "a", "kind": "planned", "hours": 30, "label": "cov"},
+               {"week_end": D(2026, 11, 14), "owner": "a", "kind": "unplanned", "hours": 10, "label": "fire"}]
+        w = socdash.worklog_stats(log, 6)
+        self.assertEqual((w["weeks"][0]["planned"], w["weeks"][0]["unplanned"], w["people"]), (30, 10, 1))
+
+    def test_input_errors(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proj = Path(tmp, "p")
+            shutil.copytree(ORION, proj)
+            (proj / "gates.csv").write_text("block,gate,status,date\nddr_ctrl,tapeout,done,2026-11-01\n")
+            with self.assertRaises(socdash.InputError) as ctx:
+                socdash.load(proj)
+            self.assertIn("gate 'tapeout' is not one of", str(ctx.exception))
+            (proj / "gates.csv").unlink()
+            (proj / "triage.csv").write_text("id,block,failed_at,triaged_at\n1,b,2026-11-02 10:00,2026-11-01 09:00\n")
+            with self.assertRaises(socdash.InputError) as ctx:
+                socdash.load(proj)
+            self.assertIn("triaged_at is before failed_at", str(ctx.exception))
+            path = Path(tmp, "config.json")
+            path.write_text(json.dumps({"gates": [{"id": "a", "name": "A", "auto": "magic"}]}))
+            with self.assertRaises(socdash.InputError) as ctx:
+                socdash.load_config(path)
+            self.assertIn("unknown auto 'magic'", str(ctx.exception))
+
+
 class SafetyTest(unittest.TestCase):
     """Static guarantees about the generated pages. checks/browser_safety_check.js proves the
     same things in a real browser, including that hostile names never run."""
