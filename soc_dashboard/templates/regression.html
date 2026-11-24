@@ -6,6 +6,10 @@
 /*__CSS__*/
 /* Regression drill-down: pick a node in the subsystem > module > instance tree and a run to view;
    every panel follows both. The week picker drives the weekly digest and owner progress. */
+.wave { margin: 0; display: grid; gap: 2px; width: min(340px, 100%); }
+.wave figcaption { display: flex; justify-content: space-between; gap: 10px; font-size: .74rem; color: var(--muted); }
+.wave figcaption .mono { color: var(--ink); }
+.wave svg { display: block; width: 100%; height: auto; }
 .controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; padding: 10px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
 .controls label { display: flex; align-items: center; gap: 8px; font-size: .85rem; color: var(--muted); flex-wrap: wrap; }
 .controls select { font: 500 .85rem var(--font-mono); padding: 5px 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--ink); max-width: 100%; }
@@ -129,6 +133,7 @@ section.band { scroll-margin-top: 64px; }
       <h1 id="title"></h1>
       <div class="meta" id="meta"></div>
     </div>
+    <figure class="wave" id="wave"></figure>
   </header>
 
   <div class="controls">
@@ -354,6 +359,49 @@ section.band { scroll-margin-top: 64px; }
     $("run-cmp").innerHTML = c;
   }
 
+  /* ---------- run waveform ----------
+     A logic-analyzer style trace of every nightly run for the selected part of the design:
+     high when the run met the milestone bar, low when it fell short, a gap where nothing ran. */
+  function renderWave() {
+    // Sample-and-hold trace, like a logic analyzer's analog channel: each run holds its pass
+    // rate until the next clock tick. The dashed line is the milestone threshold.
+    var n = byId[sel], Wd = 340, H = 70, Lm = 8, R = 30, T = 16, B = 16, s = svg(Wd, H, "");
+    var rates = n.total.map(function (_, i) { return rate(n, i); });
+    var ran = rates.filter(function (r) { return r != null; });
+    var met = ran.filter(function (r) { return r >= need(); }).length;
+    var lo = Math.max(0, Math.floor((Math.min.apply(null, ran.concat([need()])) - 0.03) * 20) / 20), hi = 1;
+    function y(v) { return T + (hi - v) / (hi - lo) * (H - T - B); }
+    var cw = (Wd - Lm - R) / N;
+    function x(i) { return Lm + cw * i; }
+    s.setAttribute("aria-label", "Pass rate per run for " + n.name + ", " + (ran.length ? "from " + pct(ran[0]) + " to " + pct(ran[ran.length - 1]) : "no runs") + "; " + met + " of " + ran.length + " runs at or above " + pct(need(), 0));
+    for (var i = 0; i < N; i++) el(s, "line", { x1: x(i), x2: x(i), y1: 4, y2: i === V ? 12 : 9, stroke: i === V ? "var(--accent)" : "var(--line)", "stroke-width": i === V ? 2 : 1 });
+    var d = "", area = "", prev = null;
+    rates.forEach(function (r, i) {
+      if (r == null) { prev = null; return; }
+      var yy = y(r).toFixed(1);
+      d += (prev === null ? "M" + x(i) + "," + yy : "V" + yy) + "H" + (x(i) + cw);
+      area += "M" + x(i) + "," + yy + "H" + (x(i) + cw) + "V" + y(lo) + "H" + x(i) + "Z";
+      prev = r;
+    });
+    el(s, "path", { d: area, fill: "var(--accent)", "fill-opacity": 0.12 });
+    el(s, "line", { x1: Lm, x2: Wd - R, y1: y(need()), y2: y(need()), stroke: "var(--ink)", "stroke-dasharray": "3 3" });
+    el(s, "text", { x: Wd - R + 4, y: y(need()) + 4, style: "fill:var(--ink)" }, Math.round(need() * 100) + "%");
+    el(s, "path", { d: d, fill: "none", stroke: "var(--accent)", "stroke-width": 2, "stroke-linejoin": "miter", "data-line": "1" });
+    if (rates[V] != null) Viz.dot(s, x(V) + cw / 2, y(rates[V]), "var(--accent)", 4);
+    el(s, "text", { x: Lm, y: H - 3 }, D.runs[0].date.slice(5));
+    el(s, "text", { x: Wd - R, y: H - 3, "text-anchor": "end" }, D.runs[L].date.slice(5));
+    Viz.crosshair(s, rates.map(function (r, i) { return r == null ? null : x(i) + cw / 2; }), T, H - B, Lm, Wd - R, function (i) {
+      return { title: D.runs[i].run + " · " + D.runs[i].date, rows: [{ value: pct(rates[i]), label: rates[i] >= need() ? "at or above the bar" : (100 * (need() - rates[i])).toFixed(1) + " pts below the bar", color: "var(--accent)" }] };
+    });
+    var box = $("wave"); box.innerHTML = "";
+    var cap = document.createElement("figcaption");
+    var name = document.createElement("span"); name.className = "mono"; name.textContent = "sim_pass[" + n.name + "]";
+    var count = document.createElement("span"); count.textContent = met + "/" + ran.length + " runs ≥ " + pct(need(), 0);
+    cap.appendChild(name); cap.appendChild(count);
+    box.appendChild(cap); box.appendChild(s);
+    Motion.drawLines(box);
+  }
+
   /* ---------- KPIs ---------- */
   function spark(values, w, h, mark) {
     var v = values.filter(function (x) { return x != null; }); if (v.length < 2) return "";
@@ -382,6 +430,7 @@ section.band { scroll-margin-top: 64px; }
     $("kpis").innerHTML = items.map(function (k) {
       return "<div class=\"kpi\"><span class=\"label\">" + k.label + "</span><div style=\"display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-height:2.1rem\"><span class=\"value\">" + k.value + "</span>" + (k.pill || "") + "</div><span class=\"sub\">" + k.sub + "</span>" + (k.extra || "") + "</div>";
     }).join("");
+    Motion.numbers($("kpis"), "reg");
   }
 
   /* ---------- weekly digest ---------- */
@@ -475,8 +524,8 @@ section.band { scroll-margin-top: 64px; }
     function path(arr) { return ran.map(function (i, k) { return (k ? "L" : "M") + x(DATES[i]).toFixed(1) + "," + y(arr[i]).toFixed(1); }).join(""); }
     if (ran.length) {
       el(s, "path", { d: path(n.tp) + "L" + x(DATES[ran[ran.length - 1]]).toFixed(1) + "," + y(0) + "L" + x(DATES[ran[0]]).toFixed(1) + "," + y(0) + "Z", fill: "var(--pass)", "fill-opacity": "0.1" });
-      el(s, "path", { d: path(runTot), fill: "none", stroke: "var(--muted)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" });
-      el(s, "path", { d: path(n.tp), fill: "none", stroke: "var(--pass)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" });
+      el(s, "path", { d: path(runTot), fill: "none", stroke: "var(--muted)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round", "data-line": "1" });
+      el(s, "path", { d: path(n.tp), fill: "none", stroke: "var(--pass)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round", "data-line": "1" });
     }
     if (proj != null) {
       el(s, "path", { d: "M" + x(DATES[L]) + "," + y(n.tp[L]) + "L" + x(due) + "," + y(proj), fill: "none", stroke: "var(--pass)", "stroke-width": 2, "stroke-dasharray": "5 4", opacity: 0.7 });
@@ -494,6 +543,7 @@ section.band { scroll-margin-top: 64px; }
         { value: String(n.tf[i]), label: "failing" }] };
     });
     var bu = $("burnup"); bu.innerHTML = ""; bu.appendChild(s);
+    Motion.drawLines(bu);
     Viz.table(bu, "Show runs as a table", ["Run", "Date", "Tests run", "Passing", "Failing", "Sim pass rate"],
       D.runs.map(function (r, i) { return [r.run, r.date, String(runTot[i]), String(n.tp[i]), String(n.tf[i]), pct(rate(n, i))]; }).filter(function (row, i) { return n.total[i]; }).reverse());
     var gap = runTot[L] - n.tp[L];
@@ -515,7 +565,7 @@ section.band { scroll-margin-top: 64px; }
     el(s, "text", { x: Lm + 4, y: y(need()) - 5, style: "fill:var(--ink)" }, "need " + Math.round(need() * 100) + "%");
     var pts = []; rates.forEach(function (v, i) { if (v != null) pts.push([x(DATES[i]), y(v), i]); });
     if (pts.length) {
-      el(s, "path", { d: "M" + pts.map(function (p) { return p[0].toFixed(1) + "," + p[1].toFixed(1); }).join("L"), fill: "none", stroke: "var(--accent)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" });
+      el(s, "path", { d: "M" + pts.map(function (p) { return p[0].toFixed(1) + "," + p[1].toFixed(1); }).join("L"), fill: "none", stroke: "var(--accent)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round", "data-line": "1" });
       var vp = pts.filter(function (p) { return p[2] === V; })[0];
       if (vp) Viz.dot(s, vp[0], vp[1], "var(--accent)", 4.5);
       var lp = pts[pts.length - 1];
@@ -536,6 +586,7 @@ section.band { scroll-margin-top: 64px; }
         { value: pct(need(), 0), label: "milestone bar" }] };
     });
     $("ratechart").innerHTML = ""; $("ratechart").appendChild(s);
+    Motion.drawLines($("ratechart"));
   }
 
   /* ---------- failures ---------- */
@@ -727,7 +778,7 @@ section.band { scroll-margin-top: 64px; }
   /* ---------- wiring ---------- */
   function renderAll() {
     COUNTS = countsAt(V, C);
-    renderControls(); renderHeader(); renderKpis(); renderWeeks(); renderDigest(); renderBurnup(); renderRateChart();
+    renderControls(); renderHeader(); renderWave(); renderKpis(); renderWeeks(); renderDigest(); renderBurnup(); renderRateChart();
     renderFailures(); renderOwners(); renderTree(); renderFilters(); renderTests();
     $("footer").textContent = "Generated " + D.generated + " by socdash.py. Forecasts fit a straight line to the last runs and are a guide, not a promise. Instances are grouped by the CSV's subsystem and instance columns, or by \"subsystems\" in config.json.";
   }

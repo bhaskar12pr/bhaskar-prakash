@@ -144,3 +144,60 @@
 
     return { bar: bar, stack: stack, dot: dot, hover: hover, crosshair: crosshair, table: table, showTip: showTip, hideTip: hideTip };
   })();
+
+  /* Motion: short, purposeful, and off when the viewer asks for reduced motion.
+     Numbers glide from their old value to the new one and the tile that changed flashes once;
+     chart lines redraw when the data under them changes. Nothing starts hidden, so a page
+     with no animation at all is complete. */
+  var Motion = (function () {
+    var mq = window.matchMedia ? window.matchMedia("(prefers-reduced-motion: reduce)") : null;
+    function reduced() { return !!(mq && mq.matches); }
+    function ease(t) { return 1 - Math.pow(1 - t, 3); }  // ease-out cubic
+
+    /* Tween the leading number of each `.value` under `root` from what it showed last time. */
+    var last = {};
+    function numbers(root, key) {
+      var vals = root.querySelectorAll(".value");
+      Array.prototype.forEach.call(vals, function (el, i) {
+        var node = el.firstChild;
+        while (node && node.nodeType !== 3) node = node.firstChild;
+        if (!node) return;
+        var m = /^(\s*)(-?\d+(?:\.\d+)?)(.*)$/.exec(node.nodeValue);
+        if (!m) return;
+        var id = key + ":" + i, to = parseFloat(m[2]), dec = (m[2].split(".")[1] || "").length, from = last[id];
+        last[id] = to;
+        if (from == null || from === to || reduced()) return;
+        var tile = el.closest(".kpi");
+        if (tile) { tile.classList.remove("changed"); void tile.offsetWidth; tile.classList.add("changed"); }
+        var start = null, dur = 450;
+        function step(ts) {
+          if (start === null) start = ts;
+          var t = Math.min(1, (ts - start) / dur);
+          node.nodeValue = m[1] + (from + (to - from) * ease(t)).toFixed(dec) + m[3];
+          if (t < 1) requestAnimationFrame(step);
+        }
+        requestAnimationFrame(step);
+      });
+    }
+
+    /* Redraw a path from its start (stroke-dash trick). */
+    function draw(path, dur) {
+      if (reduced() || !path || !path.getTotalLength) return;
+      var len = path.getTotalLength();
+      if (!len) return;
+      path.style.strokeDasharray = len;
+      path.style.strokeDashoffset = len;
+      path.getBoundingClientRect();
+      path.style.transition = "stroke-dashoffset " + (dur || 600) + "ms cubic-bezier(.2,.8,.2,1)";
+      path.style.strokeDashoffset = "0";
+      setTimeout(function () { path.style.strokeDasharray = ""; path.style.strokeDashoffset = ""; path.style.transition = ""; }, (dur || 600) + 50);
+    }
+    /* Draw every line in a chart container, but only after its first render. */
+    var seen = {};
+    function drawLines(container) {
+      var id = container.id;
+      if (!seen[id]) { seen[id] = true; return; }
+      Array.prototype.forEach.call(container.querySelectorAll("path[data-line]"), function (p) { draw(p, 600); });
+    }
+    return { reduced: reduced, numbers: numbers, draw: draw, drawLines: drawLines };
+  })();

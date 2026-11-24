@@ -285,6 +285,21 @@ latest run's date.
 
 The chart helpers live in `templates/viz.js` and are inlined into each page at build time.
 
+## Motion
+
+Animation is used to show what changed, never as decoration, and it is short:
+* **Numbers glide** from their old value to the new one when you change the run, block or
+  selection, and the tile that changed flashes once (about half a second).
+* **Chart lines redraw** when the data under them changes.
+* **Run waveform** in the regression header: a logic-analyzer style sample-and-hold trace of
+  the pass rate per nightly run, with the milestone bar as a threshold and a tick for each run.
+* **Panels slide up into place** as they scroll into view (browsers with scroll-driven
+  animation), the quick search pops open, buttons give a small press, and "At risk"
+  forecasts pulse twice on load.
+
+Everything is off when the device asks for reduced motion, and nothing starts hidden, so a
+page that never animates is complete. Nothing fades, so text keeps full contrast throughout.
+
 ## Quick search
 
 On the regression page press **Ctrl+K** (**⌘K** on a Mac), **/**, or the **Search** button,

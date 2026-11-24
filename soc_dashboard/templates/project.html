@@ -289,6 +289,7 @@
       if (k.spark) d.appendChild(k.spark);
       box.appendChild(d);
     });
+    Motion.numbers(box, "proj");
   }
 
   /* ---------- regression ---------- */
@@ -311,7 +312,7 @@
     var pts = t.map(function (d, i) { return d.rate == null ? null : [x(i), y(d.rate)]; }).filter(Boolean);
     if (pts.length) {
       el(s, "path", { d: "M" + pts[0][0] + "," + plotB + "L" + pts.map(function (p) { return p.join(","); }).join("L") + "L" + pts[pts.length - 1][0] + "," + plotB + "Z", fill: "var(--accent)", "fill-opacity": "0.1" });
-      el(s, "path", { d: "M" + pts.map(function (p) { return p.join(","); }).join("L"), fill: "none", stroke: "var(--accent)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" });
+      el(s, "path", { d: "M" + pts.map(function (p) { return p.join(","); }).join("L"), fill: "none", stroke: "var(--accent)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round", "data-line": "1" });
       var lp = pts[pts.length - 1];
       Viz.dot(s, lp[0], lp[1], "var(--accent)", 4.5);
       var ly = lp[1] - 8;
@@ -344,6 +345,7 @@
         { value: String(d.fail + d.error + d.timeout), label: "failing sims" }] };
     });
     var box = $("trend"); box.innerHTML = ""; box.appendChild(s);
+    Motion.drawLines(box);
     Viz.table(box, "Show runs as a table", ["Run", "Date", "Sims", "Pass rate", "Failed", "Errored", "Timed out"],
       t.slice().reverse().map(function (d) { return [d.run, d.date, String(d.total), pct(d.rate), String(d.fail), String(d.error), String(d.timeout)]; }));
     $("trend-legend").innerHTML = "<span><i style=\"background:var(--accent);height:2px\"></i>pass rate</span><span><i style=\"background:var(--fail)\"></i>fail</span><span><i style=\"background:var(--err)\"></i>error</span><span><i style=\"background:var(--warn)\"></i>timeout</span>";

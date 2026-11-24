@@ -90,6 +90,10 @@ async function openPage(browser, dir, file) {
   await page.keyboard.type('zzzz-nothing');
   check((await page.$$('#pal-list [role=option]')).length === 0, 'palette: no match shows an empty-state message');
   if (axePath) {
+    // Let time-based animations (the dialog's 180ms fade-in) finish so contrast is measured on
+    // what people actually read; scroll-driven animations never finish, so skip those.
+    await page.evaluate(() => Promise.all(document.getAnimations()
+      .filter((a) => a.timeline instanceof DocumentTimeline).map((a) => a.finished.catch(() => null))));
     await page.addScriptTag({ path: axePath });
     const v = await page.evaluate(async () => (await axe.run(document, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] } })).violations.map((x) => x.id));
     check(v.length === 0, 'palette open: no WCAG 2.1 AA violations' + (v.length ? ' (' + v.join(', ') + ')' : ''));
